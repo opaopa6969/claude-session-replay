@@ -42,6 +42,7 @@ def _record_with_playwright(html_path, out_mp4, width, height, fps, speed, fmt, 
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
+                chromium_sandbox=False,
                 args=["--no-sandbox", "--disable-setuid-sandbox"]
             )
             context = browser.new_context(
