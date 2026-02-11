@@ -2,6 +2,10 @@
 
 Claude Code / Codex のセッションログ (JSONL) を **共通モデル(JSON)** に変換し、Markdown / HTML / インタラクティブプレイヤーに出力するツール。
 
+## Demo
+
+`docs/media/codex-terminal-1-35.mp4`
+
 ## セッションログの場所
 
 ```
@@ -50,6 +54,34 @@ python3 log-replay-mp4.py --agent claude <input.jsonl> -f player -o out.mp4 --wi
 - `--speed`: 再生速度
 - `--format`: `player` / `terminal`
 - `--theme`: `light` / `console`
+
+### ANSI / ESC 対応モード (renderer)
+
+`log-model-renderer.py` で ANSI エスケープをどう扱うかを選べます。
+
+```bash
+python3 log-model-renderer.py session.model.json -f terminal --ansi-mode strip
+python3 log-model-renderer.py session.model.json -f terminal --ansi-mode color
+```
+
+- `--ansi-mode strip`: すべて削除（デフォルト）
+- `--ansi-mode color`: 色だけ反映（HTMLとして描画）
+
+### メッセージ範囲指定
+
+`--range` でメッセージ番号（1始まり）を指定できます。
+
+```bash
+python3 log-model-renderer.py session.model.json -f player --range "1-50,53-"
+python3 log-replay-mp4.py --agent claude <input.jsonl> -f player --range "10-20"
+```
+
+形式:
+- `1-50` = 1〜50
+- `53-` = 53〜最後
+- `-10` = 1〜10
+- `7` = 単一
+複数はカンマ区切り。
 
 追加の引数を下流に渡す場合:
 

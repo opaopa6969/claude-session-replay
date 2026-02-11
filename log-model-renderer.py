@@ -5,6 +5,7 @@ import argparse
 import html
 import json
 import os
+import re
 
 
 def _extract_text_from_model(entry):
@@ -17,6 +18,42 @@ def _extract_tool_uses_from_model(entry):
 
 def _extract_tool_results_from_model(entry):
     return entry.get("tool_results", []) or []
+
+
+def parse_range_spec(spec, total):
+    """Parse range spec like '1-50,53-' into zero-based indices."""
+    if not spec:
+        return list(range(total))
+    indices = set()
+    parts = [p.strip() for p in spec.split(",") if p.strip()]
+    for part in parts:
+        if "-" in part:
+            start_str, end_str = part.split("-", 1)
+            start = int(start_str) if start_str.strip() else 1
+            end = int(end_str) if end_str.strip() else total
+            if start < 1:
+                start = 1
+            if end > total:
+                end = total
+            if start <= end:
+                for i in range(start, end + 1):
+                    indices.add(i - 1)
+        else:
+            try:
+                idx = int(part)
+            except ValueError:
+                continue
+            if 1 <= idx <= total:
+                indices.add(idx - 1)
+    return sorted(indices)
+
+
+def filter_messages_by_range(messages, spec):
+    if not spec:
+        return messages
+    total = len(messages)
+    indices = parse_range_spec(spec, total)
+    return [messages[i] for i in indices]
 
 
 def format_tool_use(tool_use):
@@ -105,7 +142,95 @@ def _is_table_separator(line):
     return all(ch in allowed for ch in stripped)
 
 
-def markdown_to_html_simple(text):
+# SGR color sequences only
+ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+# Any CSI sequence (cursor movement, erase, etc.)
+ANSI_CSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+# OSC sequences (e.g., hyperlinks, titles)
+ANSI_OSC_RE = re.compile(r"\x1b\].*?\x1b\\|\x1b\].*?\x07")
+# Single ESC sequences
+ANSI_ESC_RE = re.compile(r"\x1b[@-Z\\-_]")
+
+
+def strip_ansi(text):
+    text = ANSI_OSC_RE.sub("", text)
+    text = ANSI_CSI_RE.sub("", text)
+    text = ANSI_ESC_RE.sub("", text)
+    text = ANSI_SGR_RE.sub("", text)
+    return text
+
+
+def ansi_to_html(text):
+    # Basic SGR color support (30-37,90-97,40-47,100-107) + reset/bold
+    text = ANSI_OSC_RE.sub("", text)
+    text = ANSI_CSI_RE.sub("", text)
+    text = ANSI_ESC_RE.sub("", text)
+    fg = None
+    bg = None
+    bold = False
+    spans = []
+
+    def open_span():
+        styles = []
+        if fg:
+            styles.append(f"color:{fg}")
+        if bg:
+            styles.append(f"background:{bg}")
+        if bold:
+            styles.append("font-weight:bold")
+        if styles:
+            return f'<span style="{";".join(styles)}">'
+        return ""
+
+    def close_span():
+        return "</span>" if fg or bg or bold else ""
+
+    # color maps
+    fg_map = {
+        30: "#000000", 31: "#e06c75", 32: "#98c379", 33: "#e5c07b",
+        34: "#61afef", 35: "#c678dd", 36: "#56b6c2", 37: "#dcdfe4",
+        90: "#5c6370", 91: "#e06c75", 92: "#98c379", 93: "#e5c07b",
+        94: "#61afef", 95: "#c678dd", 96: "#56b6c2", 97: "#ffffff",
+    }
+    bg_map = {
+        40: "#000000", 41: "#e06c75", 42: "#98c379", 43: "#e5c07b",
+        44: "#61afef", 45: "#c678dd", 46: "#56b6c2", 47: "#dcdfe4",
+        100: "#5c6370", 101: "#e06c75", 102: "#98c379", 103: "#e5c07b",
+        104: "#61afef", 105: "#c678dd", 106: "#56b6c2", 107: "#ffffff",
+    }
+
+    parts = ANSI_SGR_RE.split(text)
+    codes = ANSI_SGR_RE.findall(text)
+    for idx, part in enumerate(parts):
+        if part:
+            spans.append(open_span() + escape(part) + close_span())
+        if idx < len(codes):
+            seq = codes[idx][2:-1]
+            if not seq:
+                continue
+            for code_str in seq.split(";"):
+                if not code_str:
+                    continue
+                try:
+                    code = int(code_str)
+                except ValueError:
+                    continue
+                if code == 0:
+                    fg = None
+                    bg = None
+                    bold = False
+                elif code == 1:
+                    bold = True
+                elif code in fg_map:
+                    fg = fg_map[code]
+                elif code in bg_map:
+                    bg = bg_map[code]
+                elif code == 22:
+                    bold = False
+    return "".join(spans)
+
+
+def markdown_to_html_simple(text, ansi_mode="strip"):
     lines = text.splitlines()
     html_lines = []
     in_code = False
@@ -122,7 +247,10 @@ def markdown_to_html_simple(text):
             i += 1
             continue
         if in_code:
-            html_lines.append(escape(line))
+            if ansi_mode == "color":
+                html_lines.append(ansi_to_html(line))
+            else:
+                html_lines.append(escape(strip_ansi(line)))
             i += 1
             continue
 
@@ -138,18 +266,23 @@ def markdown_to_html_simple(text):
             html_lines.append("<table>")
             html_lines.append("<thead><tr>")
             for h in headers:
-                html_lines.append(f"<th>{_inline_format(escape(h))}</th>")
+                cell = ansi_to_html(h) if ansi_mode == "color" else escape(strip_ansi(h))
+                html_lines.append(f"<th>{_inline_format(cell)}</th>")
             html_lines.append("</tr></thead>")
             html_lines.append("<tbody>")
             for row in rows:
                 html_lines.append("<tr>")
                 for cell in row:
-                    html_lines.append(f"<td>{_inline_format(escape(cell))}</td>")
+                    cell_html = ansi_to_html(cell) if ansi_mode == "color" else escape(strip_ansi(cell))
+                    html_lines.append(f"<td>{_inline_format(cell_html)}</td>")
                 html_lines.append("</tr>")
             html_lines.append("</tbody></table>")
             continue
 
-        line = escape(line)
+        if ansi_mode == "color":
+            line = ansi_to_html(line)
+        else:
+            line = escape(strip_ansi(line))
         line = _inline_format(line)
         if line.strip().startswith("# "):
             html_lines.append(f"<h2>{line[2:].strip()}</h2>")
@@ -170,7 +303,7 @@ def markdown_to_html_simple(text):
 # Markdown output
 # ---------------------------------------------------------------------------
 
-def convert_to_markdown(model, input_path):
+def convert_to_markdown(model, input_path, ansi_mode="strip", range_spec=None):
     lines = []
     lines.append("# Session Transcript\n")
     lines.append(f"Source: `{os.path.basename(input_path)}`\n")
@@ -178,7 +311,8 @@ def convert_to_markdown(model, input_path):
 
     message_number = 0
 
-    for entry in model.get("messages", []):
+    messages = filter_messages_by_range(model.get("messages", []), range_spec)
+    for entry in messages:
         role = entry.get("role", "")
         if role == "user":
             message_number += 1
@@ -197,6 +331,7 @@ def convert_to_markdown(model, input_path):
         else:
             continue
 
+        text = strip_ansi(text)
         if text.strip():
             lines.append(f"{text.strip()}\n")
 
@@ -209,6 +344,7 @@ def convert_to_markdown(model, input_path):
             for result in tool_results:
                 result_content = result.get("content", "")
                 result_text = format_tool_result_content(result_content)
+                result_text = strip_ansi(result_text)
                 if result_text.strip():
                     truncated = result_text[:500]
                     if len(result_text) > 500:
@@ -511,11 +647,12 @@ def format_tool_use_html(tool_use):
     return f'<span class="tool-name">{escape(name)}</span>'
 
 
-def convert_to_html(model, input_path, theme="light"):
+def convert_to_html(model, input_path, theme="light", ansi_mode="strip", range_spec=None):
     message_blocks = []
     message_number = 0
 
-    for entry in model.get("messages", []):
+    messages = filter_messages_by_range(model.get("messages", []), range_spec)
+    for entry in messages:
         role = entry.get("role", "")
         if role == "user":
             message_number += 1
@@ -537,7 +674,7 @@ def convert_to_html(model, input_path, theme="light"):
             continue
 
         if text.strip():
-            parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip())}</div>')
+            parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
 
         if tool_uses:
             for tool_use in tool_uses:
@@ -880,11 +1017,12 @@ PLAYER_TEMPLATE = """\
 """
 
 
-def convert_to_player(model, input_path, theme="console"):
+def convert_to_player(model, input_path, theme="console", ansi_mode="strip", range_spec=None):
     message_blocks = []
     message_number = 0
 
-    for entry in model.get("messages", []):
+    messages = filter_messages_by_range(model.get("messages", []), range_spec)
+    for entry in messages:
         role = entry.get("role", "")
         if role == "user":
             message_number += 1
@@ -899,7 +1037,7 @@ def convert_to_player(model, input_path, theme="console"):
         if role == "user":
             parts = [f'<div class="role-label">User ({message_number})</div>']
             if text.strip():
-                parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip())}</div>')
+                parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
             if tool_uses:
                 for tool_use in tool_uses:
                     formatted = format_tool_use_html(tool_use)
@@ -908,8 +1046,16 @@ def convert_to_player(model, input_path, theme="console"):
                 for result in tool_results:
                     result_content = result.get("content", "")
                     result_text = format_tool_result_content(result_content)
+                    if ansi_mode == "strip":
+                        result_text = strip_ansi(result_text)
+                    elif ansi_mode == "color":
+                        result_text = ansi_to_html(result_text)
                     if result_text.strip():
-                        truncated = escape(result_text[:500])
+                        truncated = result_text[:500]
+                        if ansi_mode == "strip":
+                            truncated = escape(truncated)
+                        elif ansi_mode == "color":
+                            truncated = truncated
                         if len(result_text) > 500:
                             truncated += "\n... (truncated)"
                         parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
@@ -919,7 +1065,7 @@ def convert_to_player(model, input_path, theme="console"):
             if text.strip():
                 text_parts = []
                 text_parts.append('<div class="role-label">Assistant</div>')
-                text_parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip())}</div>')
+                text_parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
                 message_blocks.append(f'<div class="message assistant">\n' + "\n".join(text_parts) + "\n</div>")
 
             if tool_uses:
@@ -933,8 +1079,16 @@ def convert_to_player(model, input_path, theme="console"):
                 for result in tool_results:
                     result_content = result.get("content", "")
                     result_text = format_tool_result_content(result_content)
+                    if ansi_mode == "strip":
+                        result_text = strip_ansi(result_text)
+                    elif ansi_mode == "color":
+                        result_text = ansi_to_html(result_text)
                     if result_text.strip():
-                        truncated = escape(result_text[:500])
+                        truncated = result_text[:500]
+                        if ansi_mode == "strip":
+                            truncated = escape(truncated)
+                        elif ansi_mode == "color":
+                            truncated = truncated
                         if len(result_text) > 500:
                             truncated += "\n... (truncated)"
                         tool_parts = []
@@ -1471,11 +1625,12 @@ TERMINAL_TEMPLATE = """\
 """
 
 
-def convert_to_terminal(model, input_path):
+def convert_to_terminal(model, input_path, ansi_mode="strip", range_spec=None):
     message_blocks = []
     message_number = 0
 
-    for entry in model.get("messages", []):
+    messages = filter_messages_by_range(model.get("messages", []), range_spec)
+    for entry in messages:
         role = entry.get("role", "")
         if role == "user":
             message_number += 1
@@ -1490,11 +1645,17 @@ def convert_to_terminal(model, input_path):
         if role == "user":
             if text.strip():
                 user_html = f'<div class="t-prompt">\u276F</div>'
-                user_html += f'<div class="t-user-text">{escape(text.strip())}</div>'
+                if ansi_mode == "strip":
+                    safe_text = escape(strip_ansi(text.strip()))
+                elif ansi_mode == "color":
+                    safe_text = ansi_to_html(text.strip())
+                else:
+                    safe_text = escape(text.strip())
+                user_html += f'<div class="t-user-text">{safe_text}</div>'
                 message_blocks.append(f'<div class="t-msg t-user">{user_html}</div>')
         elif role == "assistant":
             if text.strip():
-                body_html = markdown_to_html_simple(text.strip())
+                body_html = markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)
                 message_blocks.append(
                     f'<div class="t-msg t-assistant">'
                     f'<div class="t-response">{body_html}</div>'
@@ -1520,10 +1681,17 @@ def convert_to_terminal(model, input_path):
         for result in tool_results:
             result_content = result.get("content", "")
             result_text = format_tool_result_content(result_content)
+            if ansi_mode == "strip":
+                result_text = strip_ansi(result_text)
+            elif ansi_mode == "color":
+                result_text = ansi_to_html(result_text)
             if not str(result_text).strip():
                 continue
             header = '\U0001F4DD Result'
-            body = f'<pre class="t-cmd">{escape(str(result_text))}</pre>'
+            if ansi_mode == "color":
+                body = f'<pre class="t-cmd">{result_text}</pre>'
+            else:
+                body = f'<pre class="t-cmd">{escape(str(result_text))}</pre>'
             tool_html = (
                 f'<div class="t-msg t-tool" data-tool="result">'
                 f'<div class="t-tool-header">'
@@ -1551,6 +1719,10 @@ def main():
                         help="output format: md, html, player, or terminal")
     parser.add_argument("-t", "--theme", choices=["light", "console"], default="light",
                         help="HTML theme: light (default) or console (dark)")
+    parser.add_argument("--ansi-mode", choices=["strip", "color"], default="strip",
+                        help="ANSI handling: strip or color (HTML)")
+    parser.add_argument("-r", "--range", dest="range_spec",
+                        help="message range like '1-50,53-' (1-based, comma-separated)")
     args = parser.parse_args()
 
     with open(args.input, "r", encoding="utf-8") as f:
@@ -1563,13 +1735,13 @@ def main():
         output_path = os.path.splitext(args.input)[0] + extension
 
     if args.format == "terminal":
-        result = convert_to_terminal(model, args.input)
+        result = convert_to_terminal(model, args.input, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
     elif args.format == "player":
-        result = convert_to_player(model, args.input, theme=args.theme)
+        result = convert_to_player(model, args.input, theme=args.theme, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
     elif args.format == "html":
-        result = convert_to_html(model, args.input, theme=args.theme)
+        result = convert_to_html(model, args.input, theme=args.theme, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
     else:
-        result = convert_to_markdown(model, args.input)
+        result = convert_to_markdown(model, args.input, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(result)

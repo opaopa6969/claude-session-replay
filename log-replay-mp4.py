@@ -117,6 +117,10 @@ def main():
     parser.add_argument("--timeout", type=float, default=600, help="max seconds to wait")
     parser.add_argument("--project", help="(claude) filter sessions by project name")
     parser.add_argument("--filter", help="(codex) filter sessions by path substring")
+    parser.add_argument("-r", "--range", dest="range_spec",
+                        help="message range like '1-50,53-' (1-based, comma-separated)")
+    parser.add_argument("--log-arg", action="append", default=[], help="extra args for log2model (repeatable)")
+    parser.add_argument("--render-arg", action="append", default=[], help="extra args for renderer (repeatable)")
     args = parser.parse_args()
 
     _ensure_deps()
@@ -132,6 +136,18 @@ def main():
         if args.filter:
             cmd += ["--log-arg", "--filter", "--log-arg", args.filter]
         cmd += ["-f", args.format, "-t", args.theme, "-o", str(html_path)]
+        if args.range_spec:
+            cmd += ["--render-arg=--range", "--render-arg", args.range_spec]
+        for extra in args.log_arg:
+            if extra.startswith("-"):
+                cmd.append(f"--log-arg={extra}")
+            else:
+                cmd += ["--log-arg", extra]
+        for extra in args.render_arg:
+            if extra.startswith("-"):
+                cmd.append(f"--render-arg={extra}")
+            else:
+                cmd += ["--render-arg", extra]
         _run(cmd)
 
         out_mp4 = Path(args.output) if args.output else Path(os.path.splitext(args.input or "session")[0] + ".mp4")
