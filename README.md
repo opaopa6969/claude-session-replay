@@ -1,6 +1,6 @@
 # claude-session-replay
 
-Claude Code のセッションログ (JSONL) を Markdown / HTML / インタラクティブプレイヤーに変換するツール。
+Claude Code / Codex のセッションログ (JSONL) を **共通モデル(JSON)** に変換し、Markdown / HTML / インタラクティブプレイヤーに出力するツール。
 
 ## セッションログの場所
 
@@ -8,10 +8,72 @@ Claude Code のセッションログ (JSONL) を Markdown / HTML / インタラ�
 ~/.claude/projects/<プロジェクトパス>/*.jsonl
 ```
 
-## 使い方
+## 使い方 (新構成)
+
+### ラッパー (推奨)
 
 ```bash
-python3 claude-session-replay.py <input.jsonl> [options]
+python3 log-replay.py --agent claude <input.jsonl> -f player
+python3 log-replay.py --agent codex <input.jsonl> -f terminal
+```
+
+入力ファイルを省略すると、各エージェント用の一覧から選択できます。
+
+### MP4 出力 (別スクリプト)
+
+`log-replay-mp4.py` は HTML プレイヤーをヘッドレスブラウザで再生し、録画して MP4 にします。
+外部依存が必要です。
+
+セットアップ:
+
+```bash
+# Ubuntu例
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip ffmpeg
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install playwright
+python -m playwright install
+```
+
+macOS(Homebrew)でシステムPythonがPEP668の場合は、必ずvenvを使ってください。
+
+```bash
+python3 log-replay-mp4.py --agent claude <input.jsonl> -f player -o out.mp4 --width 1280 --height 720 --fps 30 --speed 2.0
+```
+
+オプション:
+
+- `--width` / `--height`: 動画サイズ
+- `--fps`: フレームレート
+- `--speed`: 再生速度
+- `--format`: `player` / `terminal`
+- `--theme`: `light` / `console`
+
+追加の引数を下流に渡す場合:
+
+```bash
+python3 log-replay.py --agent codex --render-arg --theme --render-arg console
+python3 log-replay.py --agent claude --log-arg --project --log-arg myproj
+```
+
+### 1) Claude Code ログ → 共通モデル (一覧選択あり)
+
+```bash
+python3 claude-log2model.py <input.jsonl> [-o output.model.json]
+```
+
+### 2) Codex ログ → 共通モデル (一覧選択あり)
+
+```bash
+python3 codex-log2model.py <input.jsonl> [-o output.model.json]
+```
+
+### 3) 共通モデル → 出力
+
+```bash
+python3 log-model-renderer.py <input.model.json> [options]
 ```
 
 ## 出力フォーマット
@@ -19,8 +81,8 @@ python3 claude-session-replay.py <input.jsonl> [options]
 ### Markdown (デフォルト)
 
 ```bash
-python3 claude-session-replay.py session.jsonl
-python3 claude-session-replay.py session.jsonl -o output.md
+python3 log-model-renderer.py session.model.json
+python3 log-model-renderer.py session.model.json -o output.md
 ```
 
 プレーンなMarkdownテキスト。User/Assistant の会話とツール使用をテキストで記録。
@@ -28,8 +90,8 @@ python3 claude-session-replay.py session.jsonl -o output.md
 ### HTML (静的)
 
 ```bash
-python3 claude-session-replay.py session.jsonl -f html              # light テーマ
-python3 claude-session-replay.py session.jsonl -f html -t console   # dark テーマ
+python3 log-model-renderer.py session.model.json -f html              # light テーマ
+python3 log-model-renderer.py session.model.json -f html -t console   # dark テーマ
 ```
 
 チャットUI風の静的HTML。User は緑、Assistant は青の吹き出し表示。
@@ -37,8 +99,8 @@ python3 claude-session-replay.py session.jsonl -f html -t console   # dark テ�
 ### Player (再生プレイヤー)
 
 ```bash
-python3 claude-session-replay.py session.jsonl -f player              # dark テーマ
-python3 claude-session-replay.py session.jsonl -f player -t light     # light テーマ
+python3 log-model-renderer.py session.model.json -f player              # dark テーマ
+python3 log-model-renderer.py session.model.json -f player -t light     # light テーマ
 ```
 
 メッセージを順番に再生できるインタラクティブHTMLプレイヤー。
@@ -46,7 +108,7 @@ python3 claude-session-replay.py session.jsonl -f player -t light     # light �
 ### Terminal (Claude Code 風)
 
 ```bash
-python3 claude-session-replay.py session.jsonl -f terminal
+python3 log-model-renderer.py session.model.json -f terminal
 ```
 
 Claude Code のターミナルUIを忠実に再現したプレイヤー。
@@ -85,3 +147,7 @@ Claude Code のターミナルUIを忠実に再現したプレイヤー。
 
 - Python 3.6+
 - 外部ライブラリ不要 (標準ライブラリのみ)
+
+## 旧スクリプト
+
+`claude-session-replay.py` は従来の単体スクリプトとして残しています。新構成のほうが Claude / Codex を分離できるため推奨です。

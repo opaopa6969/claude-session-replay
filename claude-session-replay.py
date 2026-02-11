@@ -95,6 +95,10 @@ def format_tool_result_content(content):
 
 def parse_messages(input_path):
     """JSONLファイルからuser/assistantメッセージを読み込む。"""
+    log_format = detect_log_format(input_path)
+    if log_format == "codex":
+        return parse_codex_messages(input_path)
+
     messages = []
     with open(input_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -102,6 +106,159 @@ def parse_messages(input_path):
             message_type = data.get("type", "")
             if message_type in ("user", "assistant"):
                 messages.append(data)
+    return messages
+
+
+def detect_log_format(input_path):
+    """ログ形式を推定する。"""
+    with open(input_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            record_type = data.get("type", "")
+            if record_type in ("session_meta", "event_msg", "response_item", "turn_context"):
+                return "codex"
+            if record_type in ("user", "assistant"):
+                return "claude"
+    return "claude"
+
+
+def _codex_has_event_messages(input_path):
+    """Codexログにevent_msg由来のメッセージがあるか確認する。"""
+    with open(input_path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if data.get("type") != "event_msg":
+                continue
+            payload = data.get("payload", {})
+            if payload.get("type") in ("user_message", "agent_message"):
+                return True
+    return False
+
+
+def _extract_text_from_codex_content(content):
+    """Codexのmessage.contentからテキストを抽出する。"""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        texts = []
+        for block in content:
+            if isinstance(block, dict):
+                block_type = block.get("type")
+                if block_type in ("input_text", "output_text", "text"):
+                    texts.append(block.get("text", ""))
+        return "\n".join(texts)
+    return ""
+
+
+def _safe_json_loads(value):
+    """JSON文字列を安全に解析する。"""
+    if not isinstance(value, str):
+        return value if isinstance(value, dict) else {}
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _codex_tool_use_from_function_call(payload):
+    """Codexのfunction_call/custom_tool_callをClaude互換のtool_useに変換する。"""
+    name = payload.get("name", "Unknown")
+    if payload.get("type") == "function_call":
+        args = _safe_json_loads(payload.get("arguments", ""))
+        if name == "shell_command":
+            command = args.get("command", "")
+            workdir = args.get("workdir")
+            if workdir:
+                command = f"cd {workdir}\n{command}"
+            return {"type": "tool_use", "name": "Bash", "input": {"command": command}}
+        if name == "update_plan":
+            description = args.get("explanation", "update_plan")
+            return {"type": "tool_use", "name": "Task", "input": {"description": description}}
+        return {"type": "tool_use", "name": name, "input": args}
+
+    # custom_tool_call
+    tool_input = payload.get("input", "")
+    return {"type": "tool_use", "name": name, "input": {"input": tool_input}}
+
+
+def parse_codex_messages(input_path):
+    """Codex JSONLからuser/assistantメッセージを抽出する。"""
+    messages = []
+    use_event_msgs = _codex_has_event_messages(input_path)
+
+    with open(input_path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            record_type = data.get("type", "")
+            payload = data.get("payload", {})
+            payload_type = payload.get("type")
+
+            if record_type == "event_msg":
+                if payload_type == "user_message":
+                    text = payload.get("message", "")
+                    if text.strip():
+                        messages.append({
+                            "type": "user",
+                            "message": {"role": "user", "content": [{"type": "text", "text": text}]}
+                        })
+                elif payload_type == "agent_message":
+                    text = payload.get("message", "")
+                    if text.strip():
+                        messages.append({
+                            "type": "assistant",
+                            "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}
+                        })
+                continue
+
+            if record_type != "response_item":
+                continue
+
+            if payload_type == "message":
+                if use_event_msgs:
+                    continue
+                role = payload.get("role", "")
+                if role not in ("user", "assistant"):
+                    continue
+                text = _extract_text_from_codex_content(payload.get("content", []))
+                if text.strip():
+                    messages.append({
+                        "type": role,
+                        "message": {"role": role, "content": [{"type": "text", "text": text}]}
+                    })
+                continue
+
+            if payload_type in ("function_call", "custom_tool_call"):
+                tool_use = _codex_tool_use_from_function_call(payload)
+                if tool_use:
+                    messages.append({
+                        "type": "assistant",
+                        "message": {"role": "assistant", "content": [tool_use]}
+                    })
+                continue
+
+            if payload_type in ("function_call_output", "custom_tool_call_output"):
+                output = payload.get("output", "")
+                if output:
+                    messages.append({
+                        "type": "assistant",
+                        "message": {"role": "assistant", "content": [{"type": "tool_result", "content": output}]}
+                    })
+                continue
+
     return messages
 
 
@@ -125,44 +282,42 @@ def convert_to_markdown(messages, input_path):
 
         if role == "user":
             message_number += 1
-            text = extract_text_from_content(content)
-            tool_results = extract_tool_results(content)
 
-            if text.strip():
-                lines.append(f"## User ({message_number})\n")
-                lines.append(f"{text.strip()}\n")
+        text = extract_text_from_content(content)
+        tool_uses = extract_tool_uses(content)
+        tool_results = extract_tool_results(content)
 
-            if tool_results:
-                for result in tool_results:
-                    result_content = result.get("content", "")
-                    result_text = format_tool_result_content(result_content)
-                    if result_text.strip():
-                        truncated = result_text[:500]
-                        if len(result_text) > 500:
-                            truncated += "\n... (truncated)"
-                        lines.append(f"\n<details><summary>Tool Result</summary>\n")
-                        lines.append(f"```\n{truncated}\n```\n")
-                        lines.append(f"</details>\n")
+        if not text.strip() and not tool_uses and not tool_results:
+            continue
 
+        if role == "user":
+            lines.append(f"## User ({message_number})\n")
         elif role == "assistant":
-            text = extract_text_from_content(content)
-            tool_uses = extract_tool_uses(content)
+            lines.append("## Assistant\n")
+        else:
+            continue
 
-            has_content = text.strip() or tool_uses
-            if not has_content:
-                continue
+        if text.strip():
+            lines.append(f"{text.strip()}\n")
 
-            lines.append(f"## Assistant\n")
+        if tool_uses:
+            for tool_use in tool_uses:
+                formatted = format_tool_use(tool_use)
+                lines.append(f"\n{formatted}\n")
 
-            if text.strip():
-                lines.append(f"{text.strip()}\n")
+        if tool_results:
+            for result in tool_results:
+                result_content = result.get("content", "")
+                result_text = format_tool_result_content(result_content)
+                if result_text.strip():
+                    truncated = result_text[:500]
+                    if len(result_text) > 500:
+                        truncated += "\n... (truncated)"
+                    lines.append(f"\n<details><summary>Tool Result</summary>\n")
+                    lines.append(f"```\n{truncated}\n```\n")
+                    lines.append(f"</details>\n")
 
-            if tool_uses:
-                for tool_use in tool_uses:
-                    formatted = format_tool_use(tool_use)
-                    lines.append(f"\n{formatted}\n")
-
-            lines.append("")
+        lines.append("")
 
     lines.append("\n---\n*Converted from Claude Code JSONL session transcript.*\n")
     return "\n".join(lines)
@@ -545,47 +700,42 @@ def convert_to_html(messages, input_path, theme="light"):
 
         if role == "user":
             message_number += 1
-            text = extract_text_from_content(content)
-            tool_results = extract_tool_results(content)
 
-            if not text.strip() and not tool_results:
-                continue
+        text = extract_text_from_content(content)
+        tool_uses = extract_tool_uses(content)
+        tool_results = extract_tool_results(content)
 
-            parts = []
-            parts.append(f'<div class="role-label">User ({message_number})</div>')
-            if text.strip():
-                parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip())}</div>')
+        if not text.strip() and not tool_uses and not tool_results:
+            continue
 
-            if tool_results:
-                for result in tool_results:
-                    result_content = result.get("content", "")
-                    result_text = format_tool_result_content(result_content)
-                    if result_text.strip():
-                        truncated = escape(result_text[:500])
-                        if len(result_text) > 500:
-                            truncated += "\n... (truncated)"
-                        parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
-
-            message_blocks.append(f'<div class="message user">\n' + "\n".join(parts) + "\n</div>")
-
+        if role == "user":
+            parts = [f'<div class="role-label">User ({message_number})</div>']
+            wrapper_class = "user"
         elif role == "assistant":
-            text = extract_text_from_content(content)
-            tool_uses = extract_tool_uses(content)
+            parts = ['<div class="role-label">Assistant</div>']
+            wrapper_class = "assistant"
+        else:
+            continue
 
-            if not text.strip() and not tool_uses:
-                continue
+        if text.strip():
+            parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip())}</div>')
 
-            parts = []
-            parts.append('<div class="role-label">Assistant</div>')
-            if text.strip():
-                parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip())}</div>')
+        if tool_uses:
+            for tool_use in tool_uses:
+                formatted = format_tool_use_html(tool_use)
+                parts.append(f'<div class="tool-section">{formatted}</div>')
 
-            if tool_uses:
-                for tool_use in tool_uses:
-                    formatted = format_tool_use_html(tool_use)
-                    parts.append(f'<div class="tool-section">{formatted}</div>')
+        if tool_results:
+            for result in tool_results:
+                result_content = result.get("content", "")
+                result_text = format_tool_result_content(result_content)
+                if result_text.strip():
+                    truncated = escape(result_text[:500])
+                    if len(result_text) > 500:
+                        truncated += "\n... (truncated)"
+                    parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
 
-            message_blocks.append(f'<div class="message assistant">\n' + "\n".join(parts) + "\n</div>")
+        message_blocks.append(f'<div class="message {wrapper_class}">\n' + "\n".join(parts) + "\n</div>")
 
     theme_css = THEME_CONSOLE if theme == "console" else THEME_LIGHT
     all_messages = "\n".join(message_blocks)
@@ -1016,17 +1166,22 @@ def convert_to_player(messages, input_path, theme="console"):
 
         if role == "user":
             message_number += 1
-            text = extract_text_from_content(content)
-            tool_results = extract_tool_results(content)
 
-            if not text.strip() and not tool_results:
-                continue
+        text = extract_text_from_content(content)
+        tool_uses = extract_tool_uses(content)
+        tool_results = extract_tool_results(content)
 
-            parts = []
-            parts.append(f'<div class="role-label">User ({message_number})</div>')
+        if not text.strip() and not tool_uses and not tool_results:
+            continue
+
+        if role == "user":
+            parts = [f'<div class="role-label">User ({message_number})</div>']
             if text.strip():
                 parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip())}</div>')
-
+            if tool_uses:
+                for tool_use in tool_uses:
+                    formatted = format_tool_use_html(tool_use)
+                    parts.append(f'<div class="tool-section">{formatted}</div>')
             if tool_results:
                 for result in tool_results:
                     result_content = result.get("content", "")
@@ -1036,16 +1191,9 @@ def convert_to_player(messages, input_path, theme="console"):
                         if len(result_text) > 500:
                             truncated += "\n... (truncated)"
                         parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
-
             message_blocks.append(f'<div class="message user">\n' + "\n".join(parts) + "\n</div>")
 
         elif role == "assistant":
-            text = extract_text_from_content(content)
-            tool_uses = extract_tool_uses(content)
-
-            if not text.strip() and not tool_uses:
-                continue
-
             # テキストとツールを別メッセージに分割（ツールスキップ用）
             if text.strip():
                 text_parts = []
@@ -1059,6 +1207,18 @@ def convert_to_player(messages, input_path, theme="console"):
                     tool_parts = []
                     tool_parts.append(f'<div class="tool-section">{formatted}</div>')
                     message_blocks.append(f'<div class="message assistant">\n' + "\n".join(tool_parts) + "\n</div>")
+
+            if tool_results:
+                for result in tool_results:
+                    result_content = result.get("content", "")
+                    result_text = format_tool_result_content(result_content)
+                    if result_text.strip():
+                        truncated = escape(result_text[:500])
+                        if len(result_text) > 500:
+                            truncated += "\n... (truncated)"
+                        tool_parts = []
+                        tool_parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
+                        message_blocks.append(f'<div class="message assistant">\n' + "\n".join(tool_parts) + "\n</div>")
 
     theme_css = THEME_LIGHT if theme == "light" else THEME_CONSOLE
     all_messages = "\n".join(message_blocks)
@@ -1151,42 +1311,58 @@ def convert_to_terminal(messages, input_path):
 
         if role == "user":
             message_number += 1
-            text = extract_text_from_content(content)
 
-            if not text.strip():
-                continue
+        text = extract_text_from_content(content)
+        tool_uses = extract_tool_uses(content)
+        tool_results = extract_tool_results(content)
 
-            user_html = f'<div class="t-prompt">\u276F</div>'
-            user_html += f'<div class="t-user-text">{escape(text.strip())}</div>'
-            message_blocks.append(f'<div class="t-msg t-user">{user_html}</div>')
+        if not text.strip() and not tool_uses and not tool_results:
+            continue
 
+        if role == "user":
+            if text.strip():
+                user_html = f'<div class="t-prompt">\u276F</div>'
+                user_html += f'<div class="t-user-text">{escape(text.strip())}</div>'
+                message_blocks.append(f'<div class="t-msg t-user">{user_html}</div>')
         elif role == "assistant":
-            text = extract_text_from_content(content)
-            tool_uses = extract_tool_uses(content)
-
-            if not text.strip() and not tool_uses:
-                continue
-
             if text.strip():
                 body_html = markdown_to_html_simple(text.strip())
                 message_blocks.append(
                     f'<div class="t-msg t-assistant">'
                     f'<div class="t-response">{body_html}</div>'
                     f'</div>')
+        else:
+            continue
 
-            for tool_use in tool_uses:
-                header, body = format_tool_use_terminal(tool_use)
-                tool_name = tool_use.get("name", "")
-                extra_class = " t-tool-empty" if tool_name in TRIMMABLE_TOOLS else ""
-                tool_html = (
-                    f'<div class="t-msg t-tool{extra_class}">'
-                    f'<div class="t-tool-header">'
-                    f'<span class="t-spinner"></span>{header}'
-                    f'</div>')
-                if body:
-                    tool_html += f'<div class="t-tool-body">{body}</div>'
-                tool_html += '</div>'
-                message_blocks.append(tool_html)
+        for tool_use in tool_uses:
+            header, body = format_tool_use_terminal(tool_use)
+            tool_name = tool_use.get("name", "")
+            extra_class = " t-tool-empty" if tool_name in TRIMMABLE_TOOLS else ""
+            tool_html = (
+                f'<div class="t-msg t-tool{extra_class}">'
+                f'<div class="t-tool-header">'
+                f'<span class="t-spinner"></span>{header}'
+                f'</div>')
+            if body:
+                tool_html += f'<div class="t-tool-body">{body}</div>'
+            tool_html += '</div>'
+            message_blocks.append(tool_html)
+
+        for result in tool_results:
+            result_content = result.get("content", "")
+            result_text = format_tool_result_content(result_content)
+            if not str(result_text).strip():
+                continue
+            header = '\U0001F4DD Result'
+            body = f'<pre class="t-cmd">{escape(str(result_text))}</pre>'
+            tool_html = (
+                f'<div class="t-msg t-tool">'
+                f'<div class="t-tool-header">'
+                f'<span class="t-spinner"></span>{header}'
+                f'</div>'
+                f'<div class="t-tool-body">{body}</div>'
+                f'</div>')
+            message_blocks.append(tool_html)
 
     all_messages = "\n".join(message_blocks)
     return TERMINAL_TEMPLATE.replace("{{MESSAGES}}", all_messages)
