@@ -5,7 +5,8 @@ Claude Code / Codex のセッションログ (JSONL) を **共通モデル(JSON)
 ## Demo
 
 [Demo video (MP4)](docs/media/codex-terminal-1-35.mp4)
-[Demo preview (WebM 10s)](docs/media/codex-terminal-1-35-10s.webm)
+
+![Demo preview](docs/media/codex-terminal-1-35-10s.gif)
 
 ## セッションログの場所
 
