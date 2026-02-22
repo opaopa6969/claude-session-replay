@@ -1119,8 +1119,9 @@ PLAYER_TEMPLATE = """\
 
   function formatTime(date) {
     if (!date || isNaN(date.getTime())) return '--:--';
-    const h = String(date.getHours()).padStart(2, '0');
-    const m = String(date.getMinutes()).padStart(2, '0');
+    // Use UTC to match stored timestamps
+    const h = String(date.getUTCHours()).padStart(2, '0');
+    const m = String(date.getUTCMinutes()).padStart(2, '0');
     return `${h}:${m}`;
   }
 
@@ -1128,9 +1129,10 @@ PLAYER_TEMPLATE = """\
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) return;
 
-    const h = date.getHours() % 12;
-    const m = date.getMinutes();
-    const s = date.getSeconds();
+    // Use UTC to match stored timestamps
+    const h = date.getUTCHours() % 12;
+    const m = date.getUTCMinutes();
+    const s = date.getUTCSeconds();
 
     const hourAngle = ((h * 60 + m) / 720) * 2 * Math.PI - Math.PI / 2;
     const minuteAngle = ((m * 60 + s) / 3600) * 2 * Math.PI - Math.PI / 2;
@@ -1202,9 +1204,10 @@ PLAYER_TEMPLATE = """\
     }
     if (fixedClockTimeEl) {
       const dt = new Date(timestamp);
-      const h = String(dt.getHours()).padStart(2, '0');
-      const m = String(dt.getMinutes()).padStart(2, '0');
-      const s = String(dt.getSeconds()).padStart(2, '0');
+      // Use UTC to match stored timestamps
+      const h = String(dt.getUTCHours()).padStart(2, '0');
+      const m = String(dt.getUTCMinutes()).padStart(2, '0');
+      const s = String(dt.getUTCSeconds()).padStart(2, '0');
       fixedClockTimeEl.textContent = `${h}:${m}:${s}`;
     }
     if (fixedClockPeriodEl && sessionStart) {
@@ -1234,9 +1237,10 @@ PLAYER_TEMPLATE = """\
     }
     if (fixedClockTimeEl) {
       const dt = new Date(timestamp);
-      const h = String(dt.getHours()).padStart(2, '0');
-      const m = String(dt.getMinutes()).padStart(2, '0');
-      const s = String(dt.getSeconds()).padStart(2, '0');
+      // Use UTC to match stored timestamps
+      const h = String(dt.getUTCHours()).padStart(2, '0');
+      const m = String(dt.getUTCMinutes()).padStart(2, '0');
+      const s = String(dt.getUTCSeconds()).padStart(2, '0');
       fixedClockTimeEl.textContent = `${h}:${m}:${s}`;
     }
     if (fixedClockPeriodEl && sessionStart) {
