@@ -733,7 +733,7 @@ PLAYER_TEMPLATE = """\
   }
   .chat-container {
     max-width: 900px;
-    margin: 240px auto 0;
+    margin: 0 auto;
   }
   .message {
     margin: 12px 0;
@@ -1003,19 +1003,11 @@ PLAYER_TEMPLATE = """\
     font-size: 10px;
   }
   .stats-panel {
-    position: fixed;
-    top: 140px;
-    left: 0;
-    right: 0;
-    max-width: 900px;
-    margin-left: auto;
-    margin-right: auto;
-    padding: 16px 18px;
-    background: var(--tool-bg);
-    border: 1px solid var(--tool-border);
-    border-radius: 8px;
+    margin: 12px 0 0 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--tool-border);
+    border-bottom: 1px solid var(--tool-border);
     font-size: 0.9em;
-    z-index: 99;
   }
   .stats-title {
     font-weight: bold;
@@ -1079,6 +1071,37 @@ PLAYER_TEMPLATE = """\
     <div class="progress" id="progress"><span id="progressBar"></span></div>
     <div class="progress-time-label" id="progressTimeLabel"></div>
   </div>
+
+  <!-- Statistics Panel (now part of fixed header) -->
+  <div class="stats-panel" id="statsPanel">
+    <div class="stats-title">Session Statistics</div>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-label">Total Messages</div>
+        <div class="stat-value" id="statTotalMessages">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">User Messages</div>
+        <div class="stat-value" id="statUserMessages">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Assistant Messages</div>
+        <div class="stat-value" id="statAssistantMessages">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Session Duration</div>
+        <div class="stat-value" id="statDuration">--:--</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Tool Uses</div>
+        <div class="stat-value" id="statToolUses">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Avg Message Length</div>
+        <div class="stat-value" id="statAvgLength">0</div>
+      </div>
+    </div>
+  </div>
 </header>
 <div id="fixedClock" class="fixed-clock">
   <div class="fixed-clock-digital">
@@ -1127,38 +1150,6 @@ PLAYER_TEMPLATE = """\
     <circle cx="50" cy="50" r="2.5" fill="currentColor"/>
   </svg>
 </div>
-
-<!-- Statistics Panel -->
-<div class="stats-panel" id="statsPanel">
-  <div class="stats-title">Session Statistics</div>
-  <div class="stats-grid">
-    <div class="stat-item">
-      <div class="stat-label">Total Messages</div>
-      <div class="stat-value" id="statTotalMessages">0</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">User Messages</div>
-      <div class="stat-value" id="statUserMessages">0</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">Assistant Messages</div>
-      <div class="stat-value" id="statAssistantMessages">0</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">Session Duration</div>
-      <div class="stat-value" id="statDuration">--:--</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">Tool Uses</div>
-      <div class="stat-value" id="statToolUses">0</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">Avg Message Length</div>
-      <div class="stat-value" id="statAvgLength">0</div>
-    </div>
-  </div>
-</div>
-
 <div class="chat-container" id="chat">
 {{MESSAGES}}
 </div>
