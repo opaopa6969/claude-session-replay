@@ -730,6 +730,7 @@ PLAYER_TEMPLATE = """\
   .chat-container {
     max-width: 900px;
     margin: 0 auto;
+    padding-bottom: 200px;
   }
   .message {
     margin: 12px 0;
@@ -1018,7 +1019,7 @@ PLAYER_TEMPLATE = """\
   }
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(6, 1fr);
     gap: 12px;
   }
   .stat-item {
