@@ -14,6 +14,9 @@ from textual.app import ComposeResult, App
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Static, Button, ListItem, ListView, Input, Label
 from textual.binding import Binding
+from textual.message import Message
+from textual.screen import Screen
+from rich.text import Text
 
 # Import from claude-log2model and codex-log2model (with hyphens)
 def _import_module(name, filepath):
@@ -56,6 +59,174 @@ class SessionListItem(ListItem):
         super().__init__(Label(label))
 
 
+class ClickableButton(Static):
+    """Clickable button displaying [ text ] style."""
+
+    DEFAULT_CSS = """
+    ClickableButton {
+        width: auto;
+        height: 1;
+        padding: 0 1;
+        border: solid $accent;
+        content-align: center middle;
+    }
+
+    ClickableButton.active {
+        background: $primary;
+        border: solid $secondary;
+        color: $text;
+    }
+    """
+
+    def __init__(self, text: str, button_id: str = "", is_active: bool = False, **kwargs):
+        self._button_text = f"[ {text} ]"
+        self._button_id = button_id
+        self._is_active = is_active
+        super().__init__(self._button_text, **kwargs)
+        self.button_id = button_id
+        self.update_active_state(is_active)
+
+    def render(self) -> Text:
+        """Render the button text."""
+        style = "bold white" if self._is_active else "white"
+        return Text(self._button_text, style=style)
+
+    def update_active_state(self, is_active: bool):
+        """Update button active state."""
+        self._is_active = is_active
+        if is_active:
+            self.add_class("active")
+        else:
+            self.remove_class("active")
+        self.refresh()
+
+    class ClickableButtonPressed(Message):
+        """Posted when a ClickableButton is clicked."""
+        def __init__(self, button: "ClickableButton") -> None:
+            self.button = button
+            super().__init__()
+
+    def on_click(self) -> None:
+        """Handle click events."""
+        self.post_message(self.ClickableButtonPressed(self))
+
+
+class FilePickerScreen(Screen):
+    """Simple file picker screen."""
+
+    CSS = """
+    FilePickerScreen {
+        align: center middle;
+    }
+
+    #file-picker-dialog {
+        width: 70;
+        height: 20;
+        border: solid $primary;
+        background: $boost;
+    }
+
+    #file-picker-title {
+        dock: top;
+        height: 1;
+        content-align: center middle;
+    }
+
+    #file-picker-content {
+        height: 1fr;
+    }
+
+    #file-picker-path {
+        height: 1;
+        border-bottom: solid $accent;
+    }
+
+    #file-picker-list {
+        height: 1fr;
+        border-bottom: solid $accent;
+    }
+
+    #file-picker-buttons {
+        height: 3;
+        layout: horizontal;
+        align: center middle;
+    }
+
+    #file-picker-buttons ClickableButton {
+        margin: 0 2;
+    }
+    """
+
+    def __init__(self, initial_path: str = "."):
+        super().__init__()
+        self.current_path = Path(initial_path).expanduser().resolve()
+        self.selected_file = None
+
+    class FileSelected(Message):
+        """Posted when a file is selected."""
+        def __init__(self, path: str) -> None:
+            self.path = path
+            super().__init__()
+
+    def compose(self) -> ComposeResult:
+        """Compose the file picker."""
+        with Vertical(id="file-picker-dialog"):
+            yield Label("Select Output File", id="file-picker-title")
+            with Vertical(id="file-picker-content"):
+                yield Label(f"📁 {self.current_path}", id="file-picker-path")
+                yield ListView(id="file-picker-list")
+            with Horizontal(id="file-picker-buttons"):
+                yield ClickableButton("OK", button_id="file-ok", is_active=True)
+                yield ClickableButton("Cancel", button_id="file-cancel")
+
+    def on_mount(self) -> None:
+        """Load file list on mount."""
+        self._refresh_file_list()
+
+    def _refresh_file_list(self) -> None:
+        """Refresh the file list view."""
+        list_view = self.query_one("#file-picker-list", ListView)
+        list_view.clear()
+
+        try:
+            items = sorted(self.current_path.iterdir())
+            for item in items:
+                name = item.name
+                if item.is_dir():
+                    name = f"📁 {name}/"
+                else:
+                    name = f"📄 {name}"
+                list_item = ListItem(Label(name))
+                list_item.metadata = {"path": item, "is_dir": item.is_dir()}
+                list_view.append(list_item)
+        except PermissionError:
+            pass
+
+    def on_list_view_selected(self, message: ListView.Selected) -> None:
+        """Handle item selection."""
+        if message.item and message.item.metadata:
+            metadata = message.item.metadata
+            path = metadata.get("path")
+            is_dir = metadata.get("is_dir", False)
+
+            if is_dir:
+                self.current_path = path
+                self.query_one("#file-picker-path", Label).update(f"📁 {self.current_path}")
+                self._refresh_file_list()
+            else:
+                self.selected_file = str(path)
+
+    def on_clickable_label_clickable_button_pressed(self, message: ClickableButton.ClickableButtonPressed) -> None:
+        """Handle file picker buttons."""
+        btn_id = message.button.button_id
+        if btn_id == "file-ok":
+            if self.selected_file:
+                self.post_message(self.FileSelected(self.selected_file))
+                self.app.pop_screen()
+        elif btn_id == "file-cancel":
+            self.app.pop_screen()
+
+
 class LogReplayApp(App):
     """TUI application for Claude session replay."""
 
@@ -80,8 +251,8 @@ class LogReplayApp(App):
         align: center middle;
     }
 
-    #agent-buttons Button {
-        margin: 0 2;
+    #agent-buttons ClickableButton {
+        margin: 0 1;
         width: 1fr;
     }
 
@@ -115,12 +286,19 @@ class LogReplayApp(App):
         align: center middle;
     }
 
-    #buttons-section Button {
-        margin: 0 2;
+    #buttons-section ClickableButton {
+        margin: 0 1;
     }
 
     Input {
         margin: 0 1;
+        height: 1;
+        width: 1fr;
+    }
+
+    Input > .input--cursor-line {
+        color: $text;
+        background: $surface;
     }
     """
 
@@ -143,8 +321,8 @@ class LogReplayApp(App):
         yield Label("Claude Session Replay", id="title")
 
         with Horizontal(id="agent-buttons"):
-            yield Button("Claude", id="btn-claude", variant="primary")
-            yield Button("Codex", id="btn-codex")
+            yield ClickableButton("Claude", button_id="btn-claude", is_active=True, id="btn-claude")
+            yield ClickableButton("Codex", button_id="btn-codex", is_active=False, id="btn-codex")
 
         with Horizontal(id="content"):
             with Vertical(id="sessions-panel"):
@@ -159,30 +337,33 @@ class LogReplayApp(App):
             with Horizontal():
                 yield Label("Format:")
                 with Horizontal():
-                    yield Button("md", id="fmt-md", variant="primary")
-                    yield Button("html", id="fmt-html")
-                    yield Button("player", id="fmt-player")
-                    yield Button("terminal", id="fmt-terminal")
+                    yield ClickableButton("md", button_id="fmt-md", is_active=True, id="fmt-md")
+                    yield ClickableButton("html", button_id="fmt-html", is_active=False, id="fmt-html")
+                    yield ClickableButton("player", button_id="fmt-player", is_active=False, id="fmt-player")
+                    yield ClickableButton("terminal", button_id="fmt-terminal", is_active=False, id="fmt-terminal")
             with Horizontal():
                 yield Label("Theme:")
                 with Horizontal():
-                    yield Button("light", id="theme-light", variant="primary")
-                    yield Button("console", id="theme-console")
+                    yield ClickableButton("light", button_id="theme-light", is_active=True, id="theme-light")
+                    yield ClickableButton("console", button_id="theme-console", is_active=False, id="theme-console")
             with Horizontal():
                 yield Label("Range:")
-                yield Input(id="range-input", placeholder="e.g., 1-50,53-")
+                yield Static(id="range-display")
             with Horizontal():
                 yield Label("Output:")
-                yield Input(id="output-input", placeholder="File path (empty = stdout)")
+                yield Static(id="output-display")
+                yield ClickableButton("Browse", button_id="browse-btn", is_active=False)
 
         with Horizontal(id="buttons-section"):
-            yield Button("Run", id="run-btn", variant="primary")
-            yield Button("Quit", id="quit-btn")
+            yield ClickableButton("Run", button_id="run-btn", is_active=True, id="run-btn")
+            yield ClickableButton("Quit", button_id="quit-btn", is_active=False, id="quit-btn")
 
     def on_mount(self):
         """Initialize after UI is mounted."""
         self.load_sessions()
         self._refresh_preview()
+        self._update_range_display()
+        self._update_output_display()
 
     def load_sessions(self):
         """Load sessions for current agent."""
@@ -214,17 +395,17 @@ class LogReplayApp(App):
         if self.selected_session:
             if self.current_agent == "claude":
                 messages = claude_log2model._extract_preview_messages(
-                    self.selected_session["path"], count=3
+                    self.selected_session["path"], count=10
                 )
             else:
                 messages = codex_log2model._extract_preview_messages(
-                    self.selected_session["path"], count=3
+                    self.selected_session["path"], count=10
                 )
             content = ""
             for msg in messages:
                 role = msg["role"].upper()
-                text = msg["text"][:100].replace("\n", " ")
-                if len(msg["text"]) > 100:
+                text = msg["text"][:200].replace("\n", " ")
+                if len(msg["text"]) > 200:
                     text += "..."
                 content += f"[{role}] {text}\n\n"
             preview_panel.update(content or "No preview available")
@@ -242,16 +423,19 @@ class LogReplayApp(App):
                     self.selected_session = self.sessions[index]
                     self._refresh_preview()
 
-    def on_input_changed(self, message):
-        """Handle input field changes."""
-        if message.input.id == "range-input":
-            self.range_filter = message.value
-        elif message.input.id == "output-input":
-            self.output_path = message.value
+    def _update_range_display(self):
+        """Update range display."""
+        display_text = f"[ {self.range_filter or '(none)'} ]"
+        self.query_one("#range-display", Static).update(display_text)
 
-    def on_button_pressed(self, message):
-        """Handle button presses."""
-        btn_id = message.button.id
+    def _update_output_display(self):
+        """Update output display."""
+        display_text = f"[ {self.output_path or '(stdout)'} ]"
+        self.query_one("#output-display", Static).update(display_text)
+
+    def on_clickable_label_clickable_button_pressed(self, message: ClickableButton.ClickableButtonPressed) -> None:
+        """Handle clickable label clicks."""
+        btn_id = message.button.button_id
 
         # Agent selection
         if btn_id == "btn-claude":
@@ -290,19 +474,21 @@ class LogReplayApp(App):
             self._update_theme_buttons()
 
         # Actions
+        elif btn_id == "browse-btn":
+            self.open_file_picker()
         elif btn_id == "run-btn":
             self.run_replay()
         elif btn_id == "quit-btn":
             self.exit()
 
     def _update_agent_buttons(self):
-        """Update agent button variants."""
+        """Update agent button active state."""
         for btn_id, agent in [("btn-claude", "claude"), ("btn-codex", "codex")]:
-            btn = self.query_one(f"#{btn_id}", Button)
-            btn.variant = "primary" if self.current_agent == agent else "default"
+            btn = self.query_one(f"#{btn_id}", ClickableButton)
+            btn.update_active_state(self.current_agent == agent)
 
     def _update_format_buttons(self):
-        """Update format button variants."""
+        """Update format button active state."""
         format_map = {
             "fmt-md": "md",
             "fmt-html": "html",
@@ -310,14 +496,24 @@ class LogReplayApp(App):
             "fmt-terminal": "terminal"
         }
         for btn_id, fmt in format_map.items():
-            btn = self.query_one(f"#{btn_id}", Button)
-            btn.variant = "primary" if self.selected_format == fmt else "default"
+            btn = self.query_one(f"#{btn_id}", ClickableButton)
+            btn.update_active_state(self.selected_format == fmt)
 
     def _update_theme_buttons(self):
-        """Update theme button variants."""
+        """Update theme button active state."""
         for btn_id, theme in [("theme-light", "light"), ("theme-console", "console")]:
-            btn = self.query_one(f"#{btn_id}", Button)
-            btn.variant = "primary" if self.selected_theme == theme else "default"
+            btn = self.query_one(f"#{btn_id}", ClickableButton)
+            btn.update_active_state(self.selected_theme == theme)
+
+    def open_file_picker(self):
+        """Open file picker screen."""
+        def on_file_selected(message: FilePickerScreen.FileSelected) -> None:
+            self.output_path = message.path
+            self._update_output_display()
+
+        picker = FilePickerScreen(initial_path=self.output_path or str(Path.home()))
+        picker.on_message(FilePickerScreen.FileSelected, on_file_selected)
+        self.push_screen(picker)
 
     def run_replay(self):
         """Execute the replay pipeline."""
