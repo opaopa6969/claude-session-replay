@@ -35,30 +35,37 @@ python3 -m pip install textual
 
 ## 使い方 (新構成)
 
-### ラッパー (推奨)
+### CLI ラッパー (推奨・最も安定)
 
 ```bash
-python3 log-replay.py --agent claude <input.jsonl> -f player
-python3 log-replay.py --agent codex <input.jsonl> -f terminal
+source .venv/bin/activate
+python3 log-replay.py --agent claude -f player          # Claude → Player
+python3 log-replay.py --agent codex -f terminal         # Codex → Terminal
+python3 log-replay.py --agent claude -f html -t light   # HTML Light テーマ
 ```
 
-入力ファイルを省略すると、各エージェント用の一覧から選択できます。
+入力ファイルを省略すると、セッション一覧から対話的に選択できます。
 
-### TUI モード (対話型 GUI)
+**オプション**:
+- `-f, --format`: md / html / player / terminal
+- `-t, --theme`: light / console
+- `-o, --output`: 出力ファイルパス
+- `--project`: Claude プロジェクト名でフィルター
+- `--filter`: Codex パスでフィルター
+
+### TUI モード (対話型 GUI - 実験的)
+
+⚠️ **注**: textual 8.0.0 との互換性問題により、ボタンテキストが表示されない場合があります。上記の CLI ラッパー (`log-replay.py`) をお勧めします。
 
 ```bash
-# 簡単: 専用ランチャーを使用 (推奨)
+# 専用ランチャー
 ./tui
 
-# または venv を有効化してから実行
-source .venv/bin/activate
-python3 log_replay_tui.py
-
-# または venv 内の Python を直接使用
+# または直接実行
 .venv/bin/python3 log_replay_tui.py
 ```
 
-TUIを使用すると以下の操作がGUI上でできます:
+機能（セッション選択と基本操作は動作）:
 
 **Agent 選択** (上部):
 - **Claude** ボタン: Claude Code セッション
