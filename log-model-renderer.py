@@ -731,6 +731,10 @@ PLAYER_TEMPLATE = """\
     max-width: 900px;
     margin: 0 auto;
   }
+  .chat-container {
+    max-width: 900px;
+    margin: 240px auto 0;
+  }
   .message {
     margin: 12px 0;
     padding: 14px 18px;
@@ -999,10 +1003,13 @@ PLAYER_TEMPLATE = """\
     font-size: 10px;
   }
   .stats-panel {
-    position: sticky;
-    top: 0;
+    position: fixed;
+    top: 140px;
+    left: 0;
+    right: 0;
     max-width: 900px;
-    margin: 0 auto 20px;
+    margin-left: auto;
+    margin-right: auto;
     padding: 16px 18px;
     background: var(--tool-bg);
     border: 1px solid var(--tool-border);
