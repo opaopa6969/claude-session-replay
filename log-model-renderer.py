@@ -730,7 +730,6 @@ PLAYER_TEMPLATE = """\
   .chat-container {
     max-width: 900px;
     margin: 0 auto;
-    padding-bottom: 200px;
   }
   .message {
     margin: 12px 0;
@@ -1001,15 +1000,15 @@ PLAYER_TEMPLATE = """\
   }
   .stats-panel {
     position: sticky;
-    bottom: 20px;
+    top: 0;
     max-width: 900px;
-    margin: 30px auto 20px;
+    margin: 0 auto 20px;
     padding: 16px 18px;
     background: var(--tool-bg);
     border: 1px solid var(--tool-border);
     border-radius: 8px;
     font-size: 0.9em;
-    z-index: 50;
+    z-index: 99;
   }
   .stats-title {
     font-weight: bold;
@@ -1121,9 +1120,6 @@ PLAYER_TEMPLATE = """\
     <circle cx="50" cy="50" r="2.5" fill="currentColor"/>
   </svg>
 </div>
-<div class="chat-container" id="chat">
-{{MESSAGES}}
-</div>
 
 <!-- Statistics Panel -->
 <div class="stats-panel" id="statsPanel">
@@ -1154,6 +1150,10 @@ PLAYER_TEMPLATE = """\
       <div class="stat-value" id="statAvgLength">0</div>
     </div>
   </div>
+</div>
+
+<div class="chat-container" id="chat">
+{{MESSAGES}}
 </div>
 
 <div class="footer">Converted from session transcript.</div>
