@@ -998,6 +998,43 @@ PLAYER_TEMPLATE = """\
     opacity: 0.7;
     font-size: 10px;
   }
+  .stats-panel {
+    max-width: 900px;
+    margin: 30px auto 20px;
+    padding: 16px 18px;
+    background: var(--tool-bg);
+    border: 1px solid var(--tool-border);
+    border-radius: 8px;
+    font-size: 0.9em;
+  }
+  .stats-title {
+    font-weight: bold;
+    margin-bottom: 12px;
+    color: var(--tool-name-color);
+    font-size: 1.1em;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-label {
+    font-size: 0.85em;
+    color: var(--details-summary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .stat-value {
+    font-size: 1.3em;
+    font-weight: bold;
+    color: var(--assistant-label);
+    font-family: var(--mono);
+  }
 </style>
 </head>
 <body>
@@ -1083,6 +1120,38 @@ PLAYER_TEMPLATE = """\
 <div class="chat-container" id="chat">
 {{MESSAGES}}
 </div>
+
+<!-- Statistics Panel -->
+<div class="stats-panel" id="statsPanel">
+  <div class="stats-title">Session Statistics</div>
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="stat-label">Total Messages</div>
+      <div class="stat-value" id="statTotalMessages">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">User Messages</div>
+      <div class="stat-value" id="statUserMessages">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Assistant Messages</div>
+      <div class="stat-value" id="statAssistantMessages">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Session Duration</div>
+      <div class="stat-value" id="statDuration">--:--</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Tool Uses</div>
+      <div class="stat-value" id="statToolUses">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Avg Message Length</div>
+      <div class="stat-value" id="statAvgLength">0</div>
+    </div>
+  </div>
+</div>
+
 <div class="footer">Converted from session transcript.</div>
 <script>
 (() => {
@@ -1473,6 +1542,34 @@ PLAYER_TEMPLATE = """\
 
   updateVisibility();
   updateProgress();
+
+  // Calculate and display statistics
+  const userMessages = messages.filter(m => m.classList.contains('user'));
+  const assistantMessages = messages.filter(m => m.classList.contains('assistant'));
+  const totalToolUses = messages.reduce((sum, m) => {
+    const tools = m.querySelectorAll('.tool-section');
+    return sum + tools.length;
+  }, 0);
+  const avgLength = messages.reduce((sum, m) => {
+    const body = m.querySelector('.message-body');
+    return sum + (body ? body.textContent.length : 0);
+  }, 0) / Math.max(messages.length, 1);
+
+  // Update stats
+  document.getElementById('statTotalMessages').textContent = messages.length;
+  document.getElementById('statUserMessages').textContent = userMessages.length;
+  document.getElementById('statAssistantMessages').textContent = assistantMessages.length;
+  document.getElementById('statToolUses').textContent = totalToolUses;
+  document.getElementById('statAvgLength').textContent = Math.round(avgLength) + ' chars';
+
+  // Session duration
+  if (sessionStart && sessionEnd) {
+    const durationMs = sessionEnd - sessionStart;
+    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+    const mins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+    const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    document.getElementById('statDuration').textContent = durationStr;
+  }
 })();
 </script>
 </body>
