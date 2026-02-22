@@ -738,6 +738,9 @@ PLAYER_TEMPLATE = """\
     border-left: 4px solid;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
   }
   .message.user {
     background: var(--user-bg);
@@ -748,6 +751,10 @@ PLAYER_TEMPLATE = """\
     background: var(--assistant-bg);
     border-left-color: var(--assistant-border);
     margin-left: 60px;
+  }
+  .message-content {
+    flex: 1;
+    min-width: 0;
   }
   .role-label {
     font-weight: bold;
@@ -878,6 +885,75 @@ PLAYER_TEMPLATE = """\
     gap: 6px;
     font-size: 12px;
   }
+  .alibai-controls {
+    display: flex;
+    gap: 20px;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .alibai-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .alibai-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .alibai-group input[type="checkbox"],
+  .alibai-group input[type="radio"] {
+    cursor: pointer;
+  }
+  .fixed-clock {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: var(--tool-bg);
+    border: 1px solid var(--tool-border);
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 200;
+  }
+  .fixed-clock.active {
+    display: flex;
+  }
+  .fixed-clock svg {
+    width: 100px;
+    height: 100px;
+  }
+  .clock-time-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--tool-name-color);
+    font-family: var(--mono);
+  }
+  .progress-time-label {
+    display: none;
+    font-size: 11px;
+    color: var(--details-summary);
+    margin-top: 4px;
+    text-align: center;
+  }
+  .progress-time-label.active {
+    display: block;
+  }
+  .clock-side {
+    display: none;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  .clock-side.active {
+    display: inline-flex;
+  }
 </style>
 </head>
 <body>
@@ -893,8 +969,35 @@ PLAYER_TEMPLATE = """\
     <input id="speed" type="range" min="0.25" max="16" step="0.25" value="1" />
     <span id="speedVal">1.0x</span>
   </div>
+  <div class="alibai-controls">
+    <div class="alibai-group">
+      <label><input type="checkbox" id="chkClockSide"> Side clocks</label>
+      <label><input type="checkbox" id="chkClockFixed"> Fixed clock</label>
+    </div>
+    <div class="alibai-group">
+      <label><input type="radio" name="playMode" value="uniform" checked> Uniform</label>
+      <label><input type="radio" name="playMode" value="realtime"> Real-time</label>
+      <label><input type="radio" name="playMode" value="compressed"> Compressed</label>
+    </div>
+  </div>
 </div>
 <div class="progress" id="progress"><span id="progressBar"></span></div>
+<div class="progress-time-label" id="progressTimeLabel"></div>
+<div id="fixedClock" class="fixed-clock">
+  <svg width="100" height="100" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="48" fill="#fff" stroke="currentColor" stroke-width="2"/>
+    <g class="hour-marks">
+      <line x1="50" y1="4" x2="50" y2="12" stroke="currentColor" stroke-width="2"/>
+      <line x1="96" y1="50" x2="88" y2="50" stroke="currentColor" stroke-width="2"/>
+      <line x1="50" y1="96" x2="50" y2="88" stroke="currentColor" stroke-width="2"/>
+      <line x1="4" y1="50" x2="12" y2="50" stroke="currentColor" stroke-width="2"/>
+    </g>
+    <line class="hour-hand" x1="50" y1="50" x2="50" y2="24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    <line class="minute-hand" x1="50" y1="50" x2="50" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="50" cy="50" r="3" fill="currentColor"/>
+  </svg>
+  <div class="clock-time-label">--:--</div>
+</div>
 <div class="chat-container" id="chat">
 {{MESSAGES}}
 </div>
@@ -917,9 +1020,152 @@ PLAYER_TEMPLATE = """\
   const speedVal = document.getElementById('speedVal');
   const progress = document.getElementById('progress');
   const progressBar = document.getElementById('progressBar');
+  const chkClockSide = document.getElementById('chkClockSide');
+  const chkClockFixed = document.getElementById('chkClockFixed');
+  const playModeRadios = document.querySelectorAll('input[name="playMode"]');
+  const fixedClock = document.getElementById('fixedClock');
+  const progressTimeLabel = document.getElementById('progressTimeLabel');
+
+  // Parse timestamps and extract session time range
+  const timestamps = messages.map(m => m.dataset.timestamp).filter(Boolean);
+  const validTimestamps = timestamps.map(ts => new Date(ts)).filter(d => !isNaN(d.getTime()));
+  const sessionStart = validTimestamps.length > 0 ? new Date(Math.min(...validTimestamps.map(d => d.getTime()))) : null;
+  const sessionEnd = validTimestamps.length > 0 ? new Date(Math.max(...validTimestamps.map(d => d.getTime()))) : null;
 
   function isTool(msg) {
     return msg.querySelector('.tool-section') !== null || msg.querySelector('details') !== null;
+  }
+
+  function formatTime(date) {
+    if (!date || isNaN(date.getTime())) return '--:--';
+    const h = String(date.getHours()).padStart(2, '0');
+    const m = String(date.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
+  function drawClock(svgElem, timestamp) {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return;
+
+    const h = date.getHours() % 12;
+    const m = date.getMinutes();
+    const s = date.getSeconds();
+
+    const hourAngle = ((h * 60 + m) / 720) * 2 * Math.PI - Math.PI / 2;
+    const minuteAngle = ((m * 60 + s) / 3600) * 2 * Math.PI - Math.PI / 2;
+
+    const hourHand = svgElem.querySelector('.hour-hand');
+    const minuteHand = svgElem.querySelector('.minute-hand');
+
+    if (hourHand && minuteHand) {
+      const cx = parseFloat(hourHand.getAttribute('x1'));
+      const cy = parseFloat(hourHand.getAttribute('y1'));
+      const hourLen = 8;
+      const minuteLen = 12;
+
+      hourHand.setAttribute('x2', (cx + hourLen * Math.cos(hourAngle)).toFixed(2));
+      hourHand.setAttribute('y2', (cy + hourLen * Math.sin(hourAngle)).toFixed(2));
+      minuteHand.setAttribute('x2', (cx + minuteLen * Math.cos(minuteAngle)).toFixed(2));
+      minuteHand.setAttribute('y2', (cy + minuteLen * Math.sin(minuteAngle)).toFixed(2));
+    }
+  }
+
+  function updateClocks() {
+    const currentMsg = messages[idx];
+    if (!currentMsg) return;
+
+    const timestamp = currentMsg.dataset.timestamp;
+    if (!timestamp) return;
+
+    // Update side clocks
+    messages.forEach(m => {
+      const clock = m.querySelector('.clock-side svg');
+      if (clock && m.dataset.timestamp) {
+        drawClock(clock, m.dataset.timestamp);
+      }
+    });
+
+    // Update fixed clock
+    const fixedClockSvg = fixedClock.querySelector('svg');
+    const fixedClockLabel = fixedClock.querySelector('.clock-time-label');
+    if (fixedClockSvg) {
+      drawClock(fixedClockSvg, timestamp);
+    }
+    if (fixedClockLabel) {
+      fixedClockLabel.textContent = formatTime(new Date(timestamp));
+    }
+
+    // Update progress time labels
+    if (sessionStart && sessionEnd) {
+      const startStr = formatTime(sessionStart);
+      const endStr = formatTime(sessionEnd);
+      progressTimeLabel.textContent = `${startStr} ────────● ────────── ${endStr}`;
+    }
+  }
+
+  function toggleClocks() {
+    const showSide = chkClockSide.checked;
+    const showFixed = chkClockFixed.checked;
+
+    messages.forEach(m => {
+      const clock = m.querySelector('.clock-side');
+      if (clock) {
+        clock.classList.toggle('active', showSide);
+      }
+    });
+
+    fixedClock.classList.toggle('active', showFixed);
+    progressTimeLabel.classList.toggle('active', showFixed);
+
+    updateClocks();
+  }
+
+  function getPlayDelay() {
+    const mode = document.querySelector('input[name="playMode"]:checked').value;
+    const speedVal = parseFloat(speed.value);
+
+    if (mode === 'uniform') {
+      return Math.max(50, 800 / speedVal);
+    }
+
+    if (idx < 0 || idx >= messages.length - 1) {
+      return Math.max(50, 800 / speedVal);
+    }
+
+    const currMsg = messages[idx];
+    const nextMsg = messages[idx + 1];
+    const currTs = currMsg.dataset.timestamp;
+    const nextTs = nextMsg.dataset.timestamp;
+
+    if (!currTs || !nextTs) {
+      return Math.max(50, 800 / speedVal);
+    }
+
+    const currDate = new Date(currTs);
+    const nextDate = new Date(nextTs);
+    if (isNaN(currDate.getTime()) || isNaN(nextDate.getTime())) {
+      return Math.max(50, 800 / speedVal);
+    }
+
+    const diffMs = nextDate.getTime() - currDate.getTime();
+
+    if (mode === 'realtime') {
+      return Math.max(50, diffMs / speedVal);
+    }
+
+    if (mode === 'compressed') {
+      if (!sessionStart || !sessionEnd) {
+        return Math.max(50, 800 / speedVal);
+      }
+      const totalMs = sessionEnd.getTime() - sessionStart.getTime();
+      if (totalMs <= 0) {
+        return Math.max(50, 800 / speedVal);
+      }
+      const ratio = diffMs / totalMs;
+      return Math.max(50, ratio * 60000 / speedVal);
+    }
+
+    return Math.max(50, 800 / speedVal);
   }
 
   function scrollToCurrent(instant = false) {
@@ -943,6 +1189,7 @@ PLAYER_TEMPLATE = """\
     const total = messages.length;
     const val = total ? ((idx + 1) / total) * 100 : 0;
     progressBar.style.width = `${val}%`;
+    updateClocks();
   }
 
   function step(dir) {
@@ -968,7 +1215,6 @@ PLAYER_TEMPLATE = """\
     if (playing) return;
     playing = true;
     btnPlay.textContent = 'pause';
-    const interval = () => Math.max(50, 800 / parseFloat(speed.value));
     const tick = () => {
       if (!playing) return;
       if (idx >= messages.length - 1) {
@@ -976,7 +1222,7 @@ PLAYER_TEMPLATE = """\
         return;
       }
       step(1);
-      timer = setTimeout(tick, interval());
+      timer = setTimeout(tick, getPlayDelay());
     };
     tick();
   }
@@ -999,6 +1245,11 @@ PLAYER_TEMPLATE = """\
     btnFollow.classList.toggle('active', follow);
   });
   speed.addEventListener('input', () => { speedVal.textContent = `${parseFloat(speed.value).toFixed(2)}x`; });
+  chkClockSide.addEventListener('change', toggleClocks);
+  chkClockFixed.addEventListener('change', toggleClocks);
+  playModeRadios.forEach(radio => radio.addEventListener('change', () => {
+    updateClocks();
+  }));
   progress.addEventListener('click', (e) => {
     const rect = progress.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
@@ -1017,6 +1268,25 @@ PLAYER_TEMPLATE = """\
 """
 
 
+def _create_clock_svg(timestamp):
+    """Create a small analog clock SVG for a message."""
+    ts_attr = escape(timestamp) if timestamp else ""
+    return f'''<div class="clock-side" data-timestamp="{ts_attr}">
+  <svg width="44" height="44" viewBox="0 0 44 44">
+    <circle cx="22" cy="22" r="20" fill="#fff" stroke="currentColor" stroke-width="1.5"/>
+    <g class="hour-marks">
+      <line x1="22" y1="4" x2="22" y2="8" stroke="currentColor" stroke-width="1"/>
+      <line x1="40" y1="22" x2="36" y2="22" stroke="currentColor" stroke-width="1"/>
+      <line x1="22" y1="40" x2="22" y2="36" stroke="currentColor" stroke-width="1"/>
+      <line x1="4" y1="22" x2="8" y2="22" stroke="currentColor" stroke-width="1"/>
+    </g>
+    <line class="hour-hand" x1="22" y1="22" x2="22" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <line class="minute-hand" x1="22" y1="22" x2="22" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="22" cy="22" r="1.5" fill="currentColor"/>
+  </svg>
+</div>'''
+
+
 def convert_to_player(model, input_path, theme="console", ansi_mode="strip", range_spec=None):
     message_blocks = []
     message_number = 0
@@ -1030,9 +1300,13 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
         text = _extract_text_from_model(entry)
         tool_uses = _extract_tool_uses_from_model(entry)
         tool_results = _extract_tool_results_from_model(entry)
+        timestamp = entry.get("timestamp", "")
 
         if not text.strip() and not tool_uses and not tool_results:
             continue
+
+        timestamp_attr = f' data-timestamp="{escape(timestamp)}"' if timestamp else ""
+        clock_svg = _create_clock_svg(timestamp) if timestamp else ""
 
         if role == "user":
             parts = [f'<div class="role-label">User ({message_number})</div>']
@@ -1059,21 +1333,24 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                         if len(result_text) > 500:
                             truncated += "\n... (truncated)"
                         parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
-            message_blocks.append(f'<div class="message user">\n' + "\n".join(parts) + "\n</div>")
+            content = "\n".join(parts)
+            message_blocks.append(f'<div class="message user"{timestamp_attr}>\n{clock_svg}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
         elif role == "assistant":
             if text.strip():
                 text_parts = []
                 text_parts.append('<div class="role-label">Assistant</div>')
                 text_parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
-                message_blocks.append(f'<div class="message assistant">\n' + "\n".join(text_parts) + "\n</div>")
+                content = "\n".join(text_parts)
+                message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{clock_svg}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
             if tool_uses:
                 for tool_use in tool_uses:
                     formatted = format_tool_use_html(tool_use)
                     tool_parts = []
                     tool_parts.append(f'<div class="tool-section">{formatted}</div>')
-                    message_blocks.append(f'<div class="message assistant">\n' + "\n".join(tool_parts) + "\n</div>")
+                    content = "\n".join(tool_parts)
+                    message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{clock_svg}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
             if tool_results:
                 for result in tool_results:
@@ -1093,7 +1370,8 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                             truncated += "\n... (truncated)"
                         tool_parts = []
                         tool_parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
-                        message_blocks.append(f'<div class="message assistant">\n' + "\n".join(tool_parts) + "\n</div>")
+                        content = "\n".join(tool_parts)
+                        message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{clock_svg}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
     theme_css = THEME_LIGHT if theme == "light" else THEME_CONSOLE
     all_messages = "\n".join(message_blocks)

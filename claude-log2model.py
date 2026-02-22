@@ -78,6 +78,7 @@ def build_model(messages, input_path):
             "text": text.strip(),
             "tool_uses": tool_uses,
             "tool_results": [],
+            "timestamp": data.get("timestamp", ""),
         }
 
         for result in tool_results:

@@ -292,6 +292,7 @@ def build_model(input_path):
                             "text": text,
                             "tool_uses": [],
                             "tool_results": [],
+                            "timestamp": data.get("timestamp", ""),
                         })
                 elif payload_type == "agent_message":
                     text = payload.get("message", "").strip()
@@ -301,6 +302,7 @@ def build_model(input_path):
                             "text": text,
                             "tool_uses": [],
                             "tool_results": [],
+                            "timestamp": data.get("timestamp", ""),
                         })
                 continue
 
@@ -320,6 +322,7 @@ def build_model(input_path):
                         "text": text,
                         "tool_uses": [],
                         "tool_results": [],
+                        "timestamp": data.get("timestamp", ""),
                     })
                 continue
 
@@ -331,6 +334,7 @@ def build_model(input_path):
                         "text": "",
                         "tool_uses": [tool_use],
                         "tool_results": [],
+                        "timestamp": data.get("timestamp", ""),
                     })
                 continue
 
@@ -342,6 +346,7 @@ def build_model(input_path):
                         "text": "",
                         "tool_uses": [],
                         "tool_results": [{"content": output}],
+                        "timestamp": data.get("timestamp", ""),
                     })
                 continue
 

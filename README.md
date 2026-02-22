@@ -139,6 +139,31 @@ python3 log-model-renderer.py session.model.json -f player -t light     # light 
 
 メッセージを順番に再生できるインタラクティブHTMLプレイヤー。
 
+#### アリバイモード (Alibai Mode) ✨
+
+実際のタイムスタンプを使用して時間を可視化し、異なる再生モードで検証できます。
+
+**時計表示オプション** (チェックボックス):
+- ☑ Side clocks: 各メッセージの左に小型アナログ時計（44×44px）を表示
+- ☑ Fixed clock: 画面右下に大型アナログ時計（100×100px）を固定表示
+
+**再生モード** (ラジオボタン):
+- ● **Uniform** (デフォルト): 均一間隔（800ms ÷ speed）
+- ○ **Real-time**: メッセージ間の実際の時間差を尊重して再生
+- ○ **Compressed**: セッション全体を60秒に圧縮して相対比率で再生
+
+**使用例**:
+```bash
+# タイムスタンプ付きでモデル生成（自動的にタイムスタンプが含まれます）
+python3 claude-log2model.py session.jsonl -o session.model.json
+python3 log-model-renderer.py session.model.json -f player -o player.html
+```
+
+ブラウザで開いて:
+1. 「Side clocks」「Fixed clock」のチェックボックスで時計表示を切り替え
+2. 「Uniform」「Real-time」「Compressed」ラジオボタンで再生モードを選択
+3. 通常の play/pause と speed コントロールで再生
+
 ### Terminal (Claude Code 風)
 
 ```bash
