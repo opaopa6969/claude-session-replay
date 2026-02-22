@@ -145,6 +145,39 @@ def _extract_preview(jsonl_path):
     }
 
 
+def _extract_preview_messages(jsonl_path, count=3):
+    """Extract first N user/assistant messages for preview display."""
+    messages = []
+    try:
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                record_type = data.get("type", "")
+
+                if record_type == "user":
+                    message = data.get("message", {})
+                    content = message.get("content", "")
+                    text = _extract_text_from_content(content)
+                    if text:
+                        messages.append({"role": "user", "text": text})
+                elif record_type == "assistant":
+                    message = data.get("message", {})
+                    content = message.get("content", [])
+                    text = _extract_text_from_content(content)
+                    if text:
+                        messages.append({"role": "assistant", "text": text})
+
+                if len(messages) >= count:
+                    break
+    except (OSError, UnicodeDecodeError):
+        pass
+
+    return messages
+
+
 def _project_name_from_dir(dir_name):
     parts = dir_name.lstrip("-").split("-")
     if parts:

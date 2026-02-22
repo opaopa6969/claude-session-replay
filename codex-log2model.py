@@ -123,6 +123,42 @@ def _extract_preview(jsonl_path, use_event_msgs):
     }
 
 
+def _extract_preview_messages(jsonl_path, count=3):
+    """Extract first N user/assistant messages for preview display."""
+    messages = []
+    use_event_msgs = _codex_has_event_messages(jsonl_path)
+
+    try:
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                record_type = data.get("type", "")
+                payload = data.get("payload", {})
+                payload_type = payload.get("type")
+
+                if record_type == "event_msg" and payload_type in ("user_message", "agent_message"):
+                    role = "user" if payload_type == "user_message" else "assistant"
+                    text = payload.get("message", "").strip()
+                    if text:
+                        messages.append({"role": role, "text": text})
+                elif record_type == "response_item" and payload_type == "message" and not use_event_msgs:
+                    role = payload.get("role", "")
+                    text = _extract_text_from_codex_content(payload.get("content", [])).strip()
+                    if role in ("user", "assistant") and text:
+                        messages.append({"role": role, "text": text})
+
+                if len(messages) >= count:
+                    break
+    except (OSError, UnicodeDecodeError):
+        pass
+
+    return messages
+
+
 def discover_sessions(path_filter=None):
     codex_dir = Path.home() / ".codex" / "sessions"
     if not codex_dir.is_dir():

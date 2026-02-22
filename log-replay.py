@@ -12,22 +12,8 @@ def _run(cmd):
     return subprocess.run(cmd, check=False)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Replay Claude/Codex logs via common model")
-    parser.add_argument("--agent", choices=["claude", "codex"], required=True, help="log agent type")
-    parser.add_argument("input", nargs="?", default=None, help="input JSONL file path (omit to select)")
-    parser.add_argument("-o", "--output", help="output file path")
-    parser.add_argument("-f", "--format", choices=["md", "html", "player", "terminal"], default="md",
-                        help="output format: md, html, player, or terminal")
-    parser.add_argument("-t", "--theme", choices=["light", "console"], default="light",
-                        help="HTML theme: light (default) or console (dark)")
-    parser.add_argument("--model", help="write model JSON to this path")
-    parser.add_argument("--project", help="(claude) filter sessions by project name")
-    parser.add_argument("--filter", help="(codex) filter sessions by path substring")
-    parser.add_argument("--log-arg", action="append", default=[], help="extra args for log2model (repeatable)")
-    parser.add_argument("--render-arg", action="append", default=[], help="extra args for renderer (repeatable)")
-    args = parser.parse_args()
-
+def _cli_main(args):
+    """CLI mode (with command-line arguments)."""
     if args.agent == "claude":
         log2model = "claude-log2model.py"
         agent_args = []
@@ -72,6 +58,38 @@ def main():
             os.remove(model_path)
         except OSError:
             pass
+
+
+def _tui_main():
+    """TUI mode (interactive)."""
+    from log_replay_tui import LogReplayApp
+    app = LogReplayApp()
+    app.run()
+
+
+def main():
+    # If no arguments provided, launch TUI
+    if len(sys.argv) == 1:
+        _tui_main()
+        return
+
+    # Otherwise, use CLI mode
+    parser = argparse.ArgumentParser(description="Replay Claude/Codex logs via common model")
+    parser.add_argument("--agent", choices=["claude", "codex"], required=True, help="log agent type")
+    parser.add_argument("input", nargs="?", default=None, help="input JSONL file path (omit to select)")
+    parser.add_argument("-o", "--output", help="output file path")
+    parser.add_argument("-f", "--format", choices=["md", "html", "player", "terminal"], default="md",
+                        help="output format: md, html, player, or terminal")
+    parser.add_argument("-t", "--theme", choices=["light", "console"], default="light",
+                        help="HTML theme: light (default) or console (dark)")
+    parser.add_argument("--model", help="write model JSON to this path")
+    parser.add_argument("--project", help="(claude) filter sessions by project name")
+    parser.add_argument("--filter", help="(codex) filter sessions by path substring")
+    parser.add_argument("--log-arg", action="append", default=[], help="extra args for log2model (repeatable)")
+    parser.add_argument("--render-arg", action="append", default=[], help="extra args for renderer (repeatable)")
+    args = parser.parse_args()
+
+    _cli_main(args)
 
 
 if __name__ == "__main__":
