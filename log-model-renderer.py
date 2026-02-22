@@ -1017,7 +1017,7 @@ PLAYER_TEMPLATE = """\
     </div>
     <div class="alibai-controls">
       <div class="alibai-group">
-        <label><input type="checkbox" id="chkClockFixed"> Fixed clock</label>
+        <label><input type="checkbox" id="chkClockFixed" checked> Fixed clock</label>
       </div>
       <div class="alibai-group">
         <label><input type="radio" name="playMode" value="uniform" checked> Uniform</label>
@@ -1042,9 +1042,8 @@ PLAYER_TEMPLATE = """\
     <!-- Clock face -->
     <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
 
-    <!-- 60-minute tick marks (12 major, 48 minor) -->
+    <!-- 60-minute tick marks (12 major) -->
     <g class="minute-marks">
-      <!-- Major marks (every 5 minutes: 0, 5, 10, ..., 55) at 12, 1, 2, ..., 11 positions -->
       <!-- 12 o'clock (0 min) -->
       <line x1="50" y1="6" x2="50" y2="11" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
       <!-- 1 o'clock (5 min) -->
@@ -1069,6 +1068,34 @@ PLAYER_TEMPLATE = """\
       <line x1="4.9" y1="22.3" x2="8.5" y2="25.9" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
       <!-- 11 o'clock (55 min) -->
       <line x1="21.4" y1="9.1" x2="24.6" y2="12.9" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+    </g>
+
+    <!-- Minute dial text (0, 5, 10, ..., 55) - Rolex style -->
+    <g class="minute-dial" font-size="8" font-weight="bold" fill="currentColor" opacity="0.6" text-anchor="middle" dominant-baseline="middle">
+      <!-- 0 (top) -->
+      <text x="50" y="12">0</text>
+      <!-- 5 -->
+      <text x="77" y="18">5</text>
+      <!-- 10 -->
+      <text x="92" y="33">10</text>
+      <!-- 15 -->
+      <text x="88" y="50">15</text>
+      <!-- 20 -->
+      <text x="92" y="67">20</text>
+      <!-- 25 -->
+      <text x="77" y="82">25</text>
+      <!-- 30 (bottom) -->
+      <text x="50" y="88">30</text>
+      <!-- 35 -->
+      <text x="23" y="82">35</text>
+      <!-- 40 -->
+      <text x="8" y="67">40</text>
+      <!-- 45 -->
+      <text x="12" y="50">45</text>
+      <!-- 50 -->
+      <text x="8" y="33">50</text>
+      <!-- 55 -->
+      <text x="23" y="18">55</text>
     </g>
 
     <!-- Hour hand (diamond shape, shorter) -->
@@ -1140,13 +1167,13 @@ PLAYER_TEMPLATE = """\
     const minuteHand = svgElem.querySelector('.minute-hand');
 
     if (hourHand) {
-      // Hour hand (diamond shape, shorter - ~40% of radius to center)
+      // Hour hand (diamond shape, shorter - consistent length)
       const cx = 50, cy = 50;
-      const hourLen = 18;  // reaches about 1/3 toward edge
+      const hourLen = 18;  // Fixed length (never changes)
       const hourX = cx + hourLen * Math.cos(hourAngle);
       const hourY = cy + hourLen * Math.sin(hourAngle);
 
-      // Diamond width at base
+      // Diamond width at base (perpendicular to hand direction)
       const hourWid = 1.5;
       const hourPerpAngle = hourAngle + Math.PI / 2;
       const hx1 = cx + hourWid * Math.cos(hourPerpAngle);
@@ -1154,18 +1181,24 @@ PLAYER_TEMPLATE = """\
       const hx2 = cx - hourWid * Math.cos(hourPerpAngle);
       const hy2 = cy - hourWid * Math.sin(hourPerpAngle);
 
-      const hourPoints = `${cx},${cy} ${hx1.toFixed(1)},${hy1.toFixed(1)} ${hourX.toFixed(1)},${hourY.toFixed(1)} ${hx2.toFixed(1)},${hy2.toFixed(1)}`;
+      // Format with higher precision to prevent rounding issues
+      const hourPoints = [
+        `${cx},${cy}`,
+        `${hx1.toFixed(2)},${hy1.toFixed(2)}`,
+        `${hourX.toFixed(2)},${hourY.toFixed(2)}`,
+        `${hx2.toFixed(2)},${hy2.toFixed(2)}`
+      ].join(' ');
       hourHand.setAttribute('points', hourPoints);
     }
 
     if (minuteHand) {
-      // Minute hand (diamond shape, longer - reaches minute marks)
+      // Minute hand (diamond shape, longer - consistent length)
       const cx = 50, cy = 50;
-      const minuteLen = 38;  // reaches toward the minute marks
+      const minuteLen = 38;  // Fixed length (never changes)
       const minuteX = cx + minuteLen * Math.cos(minuteAngle);
       const minuteY = cy + minuteLen * Math.sin(minuteAngle);
 
-      // Diamond width at base (thinner)
+      // Diamond width at base (perpendicular to hand direction)
       const minuteWid = 1;
       const minutePerpAngle = minuteAngle + Math.PI / 2;
       const mx1 = cx + minuteWid * Math.cos(minutePerpAngle);
@@ -1173,7 +1206,13 @@ PLAYER_TEMPLATE = """\
       const mx2 = cx - minuteWid * Math.cos(minutePerpAngle);
       const my2 = cy - minuteWid * Math.sin(minutePerpAngle);
 
-      const minutePoints = `${cx},${cy} ${mx1.toFixed(1)},${my1.toFixed(1)} ${minuteX.toFixed(1)},${minuteY.toFixed(1)} ${mx2.toFixed(1)},${my2.toFixed(1)}`;
+      // Format with higher precision to prevent rounding issues
+      const minutePoints = [
+        `${cx},${cy}`,
+        `${mx1.toFixed(2)},${my1.toFixed(2)}`,
+        `${minuteX.toFixed(2)},${minuteY.toFixed(2)}`,
+        `${mx2.toFixed(2)},${my2.toFixed(2)}`
+      ].join(' ');
       minuteHand.setAttribute('points', minutePoints);
     }
   }
@@ -1253,6 +1292,10 @@ PLAYER_TEMPLATE = """\
 
     updateClocks();
   }
+
+  // Initialize: show fixed clock by default
+  fixedClock.classList.add('active');
+  progressTimeLabel.classList.add('active');
 
   function getPlayDelay() {
     const mode = document.querySelector('input[name="playMode"]:checked').value;
