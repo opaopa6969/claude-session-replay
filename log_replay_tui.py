@@ -12,11 +12,8 @@ from datetime import datetime
 
 from textual.app import ComposeResult, App
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Static, Button, RadioSet, RadioButton, ListItem, ListView, Input, Label, ProgressBar
+from textual.widgets import Static, Button, ListItem, ListView, Input, Label
 from textual.binding import Binding
-from textual.message import Message
-from rich.text import Text
-from rich.console import Console
 
 # Import from claude-log2model and codex-log2model (with hyphens)
 def _import_module(name, filepath):
@@ -59,30 +56,6 @@ class SessionListItem(ListItem):
         super().__init__(Label(label))
 
 
-class PreviewPanel(Static):
-    """Right panel showing message preview."""
-
-    DEFAULT_CSS = """
-    PreviewPanel {
-        border: solid $primary;
-        height: 100%;
-        overflow-y: auto;
-    }
-    """
-
-    def update_preview(self, messages):
-        """Update preview display with messages."""
-        content = ""
-        for msg in messages:
-            role = msg["role"].upper()
-            text = msg["text"][:100].replace("\n", " ")
-            if len(msg["text"]) > 100:
-                text += "..."
-            content += f"[{role}] {text}\n\n"
-
-        self.update(content or "No preview available")
-
-
 class LogReplayApp(App):
     """TUI application for Claude session replay."""
 
@@ -99,10 +72,17 @@ class LogReplayApp(App):
         content-align: left middle;
     }
 
-    #agent-section {
+    #agent-buttons {
         height: 3;
         border: solid $accent;
         background: $boost;
+        layout: horizontal;
+        align: center middle;
+    }
+
+    #agent-buttons Button {
+        margin: 0 2;
+        width: 1fr;
     }
 
     #content {
@@ -117,13 +97,15 @@ class LogReplayApp(App):
 
     #preview-panel {
         width: 1fr;
+        border: solid $primary;
+        overflow-y: auto;
     }
 
     #options-section {
         height: auto;
         border: solid $accent;
         background: $boost;
-        max-height: 6;
+        max-height: 8;
     }
 
     #buttons-section {
@@ -133,12 +115,8 @@ class LogReplayApp(App):
         align: center middle;
     }
 
-    Button {
+    #buttons-section Button {
         margin: 0 2;
-    }
-
-    RadioButton {
-        margin: 0 1;
     }
 
     Input {
@@ -164,42 +142,36 @@ class LogReplayApp(App):
         """Compose the UI."""
         yield Label("Claude Session Replay", id="title")
 
-        with Vertical(id="agent-section"):
-            yield Label("Agent:")
-            with Horizontal():
-                yield RadioSet(
-                    RadioButton("claude", value=True, id="agent-claude"),
-                    RadioButton("codex", id="agent-codex"),
-                    id="agent-radio"
-                )
+        with Horizontal(id="agent-buttons"):
+            yield Button("Claude", id="btn-claude", variant="primary")
+            yield Button("Codex", id="btn-codex")
 
         with Horizontal(id="content"):
             with Vertical(id="sessions-panel"):
                 yield Label("Sessions:")
                 yield ListView(id="sessions-list")
 
-            yield PreviewPanel(id="preview-panel")
+            with Static(id="preview-panel"):
+                pass
 
         with Vertical(id="options-section"):
             yield Label("Options:")
             with Horizontal():
                 yield Label("Format:")
-                yield RadioSet(
-                    RadioButton("md", value=True, id="fmt-md"),
-                    RadioButton("html", id="fmt-html"),
-                    RadioButton("player", id="fmt-player"),
-                    RadioButton("terminal", id="fmt-terminal"),
-                    id="format-radio"
-                )
+                with Horizontal():
+                    yield Button("md", id="fmt-md", variant="primary")
+                    yield Button("html", id="fmt-html")
+                    yield Button("player", id="fmt-player")
+                    yield Button("terminal", id="fmt-terminal")
+            with Horizontal():
                 yield Label("Theme:")
-                yield RadioSet(
-                    RadioButton("light", value=True, id="theme-light"),
-                    RadioButton("console", id="theme-console"),
-                    id="theme-radio"
-                )
+                with Horizontal():
+                    yield Button("light", id="theme-light", variant="primary")
+                    yield Button("console", id="theme-console")
             with Horizontal():
                 yield Label("Range:")
                 yield Input(id="range-input", placeholder="e.g., 1-50,53-")
+            with Horizontal():
                 yield Label("Output:")
                 yield Input(id="output-input", placeholder="File path (empty = stdout)")
 
@@ -235,32 +207,29 @@ class LogReplayApp(App):
                     item = SessionListItem(session, preview)
                     list_widget.append(item)
 
-    def on_radio_set_changed(self, message):
-        """Handle radio button changes."""
-        radio_set = message.control
-        selected_id = None
-        for btn in radio_set.query("RadioButton"):
-            if btn.value:
-                selected_id = btn.id
-                break
+    def _refresh_preview(self):
+        """Update preview panel with current selection."""
+        preview_panel = self.query_one("#preview-panel", Static)
 
-        if radio_set.id == "agent-radio":
-            agent = "claude" if selected_id == "agent-claude" else "codex"
-            if agent != self.current_agent:
-                self.current_agent = agent
-                self.load_sessions()
-                self._refresh_preview()
-        elif radio_set.id == "format-radio":
-            format_map = {
-                "fmt-md": "md",
-                "fmt-html": "html",
-                "fmt-player": "player",
-                "fmt-terminal": "terminal"
-            }
-            self.selected_format = format_map.get(selected_id, "md")
-        elif radio_set.id == "theme-radio":
-            theme = "light" if selected_id == "theme-light" else "console"
-            self.selected_theme = theme
+        if self.selected_session:
+            if self.current_agent == "claude":
+                messages = claude_log2model._extract_preview_messages(
+                    self.selected_session["path"], count=3
+                )
+            else:
+                messages = codex_log2model._extract_preview_messages(
+                    self.selected_session["path"], count=3
+                )
+            content = ""
+            for msg in messages:
+                role = msg["role"].upper()
+                text = msg["text"][:100].replace("\n", " ")
+                if len(msg["text"]) > 100:
+                    text += "..."
+                content += f"[{role}] {text}\n\n"
+            preview_panel.update(content or "No preview available")
+        else:
+            preview_panel.update("Select a session to preview")
 
     def on_list_view_selected(self, message):
         """Handle session selection."""
@@ -273,23 +242,6 @@ class LogReplayApp(App):
                     self.selected_session = self.sessions[index]
                     self._refresh_preview()
 
-    def _refresh_preview(self):
-        """Update preview panel with current selection."""
-        preview_panel = self.query_one("#preview-panel", PreviewPanel)
-
-        if self.selected_session:
-            if self.current_agent == "claude":
-                messages = claude_log2model._extract_preview_messages(
-                    self.selected_session["path"], count=3
-                )
-            else:
-                messages = codex_log2model._extract_preview_messages(
-                    self.selected_session["path"], count=3
-                )
-            preview_panel.update_preview(messages)
-        else:
-            preview_panel.update("Select a session to preview")
-
     def on_input_changed(self, message):
         """Handle input field changes."""
         if message.input.id == "range-input":
@@ -299,10 +251,73 @@ class LogReplayApp(App):
 
     def on_button_pressed(self, message):
         """Handle button presses."""
-        if message.button.id == "run-btn":
+        btn_id = message.button.id
+
+        # Agent selection
+        if btn_id == "btn-claude":
+            if self.current_agent != "claude":
+                self.current_agent = "claude"
+                self._update_agent_buttons()
+                self.load_sessions()
+                self._refresh_preview()
+        elif btn_id == "btn-codex":
+            if self.current_agent != "codex":
+                self.current_agent = "codex"
+                self._update_agent_buttons()
+                self.load_sessions()
+                self._refresh_preview()
+
+        # Format selection
+        elif btn_id == "fmt-md":
+            self.selected_format = "md"
+            self._update_format_buttons()
+        elif btn_id == "fmt-html":
+            self.selected_format = "html"
+            self._update_format_buttons()
+        elif btn_id == "fmt-player":
+            self.selected_format = "player"
+            self._update_format_buttons()
+        elif btn_id == "fmt-terminal":
+            self.selected_format = "terminal"
+            self._update_format_buttons()
+
+        # Theme selection
+        elif btn_id == "theme-light":
+            self.selected_theme = "light"
+            self._update_theme_buttons()
+        elif btn_id == "theme-console":
+            self.selected_theme = "console"
+            self._update_theme_buttons()
+
+        # Actions
+        elif btn_id == "run-btn":
             self.run_replay()
-        elif message.button.id == "quit-btn":
+        elif btn_id == "quit-btn":
             self.exit()
+
+    def _update_agent_buttons(self):
+        """Update agent button variants."""
+        for btn_id, agent in [("btn-claude", "claude"), ("btn-codex", "codex")]:
+            btn = self.query_one(f"#{btn_id}", Button)
+            btn.variant = "primary" if self.current_agent == agent else "default"
+
+    def _update_format_buttons(self):
+        """Update format button variants."""
+        format_map = {
+            "fmt-md": "md",
+            "fmt-html": "html",
+            "fmt-player": "player",
+            "fmt-terminal": "terminal"
+        }
+        for btn_id, fmt in format_map.items():
+            btn = self.query_one(f"#{btn_id}", Button)
+            btn.variant = "primary" if self.selected_format == fmt else "default"
+
+    def _update_theme_buttons(self):
+        """Update theme button variants."""
+        for btn_id, theme in [("theme-light", "light"), ("theme-console", "console")]:
+            btn = self.query_one(f"#{btn_id}", Button)
+            btn.variant = "primary" if self.selected_theme == theme else "default"
 
     def run_replay(self):
         """Execute the replay pipeline."""
