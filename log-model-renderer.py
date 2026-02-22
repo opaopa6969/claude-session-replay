@@ -999,6 +999,8 @@ PLAYER_TEMPLATE = """\
     font-size: 10px;
   }
   .stats-panel {
+    position: sticky;
+    bottom: 20px;
     max-width: 900px;
     margin: 30px auto 20px;
     padding: 16px 18px;
@@ -1006,6 +1008,7 @@ PLAYER_TEMPLATE = """\
     border: 1px solid var(--tool-border);
     border-radius: 8px;
     font-size: 0.9em;
+    z-index: 50;
   }
   .stats-title {
     font-weight: bold;
@@ -1412,6 +1415,46 @@ PLAYER_TEMPLATE = """\
     const val = total ? ((idx + 1) / total) * 100 : 0;
     progressBar.style.width = `${val}%`;
     updateClocks();
+    updateStats();
+  }
+
+  function updateStats() {
+    // Update stats for messages up to current index
+    const visibleMessages = messages.slice(0, idx + 1);
+    const userMsgs = visibleMessages.filter(m => m.classList.contains('user')).length;
+    const assistantMsgs = visibleMessages.filter(m => m.classList.contains('assistant')).length;
+
+    const toolUses = visibleMessages.reduce((sum, m) => {
+      return sum + m.querySelectorAll('.tool-section').length;
+    }, 0);
+
+    const avgLength = visibleMessages.reduce((sum, m) => {
+      const body = m.querySelector('.message-body');
+      return sum + (body ? body.textContent.length : 0);
+    }, 0) / Math.max(visibleMessages.length, 1);
+
+    // Update DOM
+    document.getElementById('statTotalMessages').textContent = visibleMessages.length;
+    document.getElementById('statUserMessages').textContent = userMsgs;
+    document.getElementById('statAssistantMessages').textContent = assistantMsgs;
+    document.getElementById('statToolUses').textContent = toolUses;
+    document.getElementById('statAvgLength').textContent = Math.round(avgLength) + ' chars';
+
+    // Update duration (from first visible to current)
+    if (visibleMessages.length > 0 && visibleMessages[visibleMessages.length - 1].dataset.timestamp) {
+      const firstTs = visibleMessages[0].dataset.timestamp;
+      const lastTs = visibleMessages[visibleMessages.length - 1].dataset.timestamp;
+      if (firstTs && lastTs) {
+        const start = new Date(firstTs);
+        const end = new Date(lastTs);
+        const durationMs = end - start;
+        const hours = Math.floor(durationMs / (1000 * 60 * 60));
+        const mins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+        const secs = Math.floor((durationMs % (1000 * 60)) / 1000);
+        const durationStr = hours > 0 ? `${hours}h ${mins}m` : (mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
+        document.getElementById('statDuration').textContent = durationStr;
+      }
+    }
   }
 
   function step(dir) {
@@ -1541,35 +1584,7 @@ PLAYER_TEMPLATE = """\
   }
 
   updateVisibility();
-  updateProgress();
-
-  // Calculate and display statistics
-  const userMessages = messages.filter(m => m.classList.contains('user'));
-  const assistantMessages = messages.filter(m => m.classList.contains('assistant'));
-  const totalToolUses = messages.reduce((sum, m) => {
-    const tools = m.querySelectorAll('.tool-section');
-    return sum + tools.length;
-  }, 0);
-  const avgLength = messages.reduce((sum, m) => {
-    const body = m.querySelector('.message-body');
-    return sum + (body ? body.textContent.length : 0);
-  }, 0) / Math.max(messages.length, 1);
-
-  // Update stats
-  document.getElementById('statTotalMessages').textContent = messages.length;
-  document.getElementById('statUserMessages').textContent = userMessages.length;
-  document.getElementById('statAssistantMessages').textContent = assistantMessages.length;
-  document.getElementById('statToolUses').textContent = totalToolUses;
-  document.getElementById('statAvgLength').textContent = Math.round(avgLength) + ' chars';
-
-  // Session duration
-  if (sessionStart && sessionEnd) {
-    const durationMs = sessionEnd - sessionStart;
-    const hours = Math.floor(durationMs / (1000 * 60 * 60));
-    const mins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-    const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-    document.getElementById('statDuration').textContent = durationStr;
-  }
+  updateProgress();  // This will call updateStats()
 })();
 </script>
 </body>
