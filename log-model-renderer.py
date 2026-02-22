@@ -1042,60 +1042,32 @@ PLAYER_TEMPLATE = """\
     <!-- Clock face -->
     <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
 
-    <!-- 60-minute tick marks (12 major) -->
+    <!-- 60-minute tick marks (12 major) - all same length, endpoints on circle -->
     <g class="minute-marks">
       <!-- 12 o'clock (0 min) -->
-      <line x1="50" y1="6" x2="50" y2="11" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 1 o'clock (5 min) -->
-      <line x1="78.6" y1="9.1" x2="75.4" y2="12.9" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 2 o'clock (10 min) -->
-      <line x1="95.1" y1="22.3" x2="91.5" y2="25.9" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 3 o'clock (15 min) -->
-      <line x1="94" y1="50" x2="89" y2="50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 4 o'clock (20 min) -->
-      <line x1="95.1" y1="77.7" x2="91.5" y2="74.1" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 5 o'clock (25 min) -->
-      <line x1="78.6" y1="90.9" x2="75.4" y2="87.1" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 6 o'clock (30 min) -->
-      <line x1="50" y1="94" x2="50" y2="89" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 7 o'clock (35 min) -->
-      <line x1="21.4" y1="90.9" x2="24.6" y2="87.1" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 8 o'clock (40 min) -->
-      <line x1="4.9" y1="77.7" x2="8.5" y2="74.1" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 9 o'clock (45 min) -->
-      <line x1="6" y1="50" x2="11" y2="50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 10 o'clock (50 min) -->
-      <line x1="4.9" y1="22.3" x2="8.5" y2="25.9" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-      <!-- 11 o'clock (55 min) -->
-      <line x1="21.4" y1="9.1" x2="24.6" y2="12.9" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
-    </g>
-
-    <!-- Minute dial text (0, 5, 10, ..., 55) - Rolex style -->
-    <g class="minute-dial" font-size="8" font-weight="bold" fill="currentColor" opacity="0.6" text-anchor="middle" dominant-baseline="middle">
-      <!-- 0 (top) -->
-      <text x="50" y="12">0</text>
-      <!-- 5 -->
-      <text x="77" y="18">5</text>
-      <!-- 10 -->
-      <text x="92" y="33">10</text>
-      <!-- 15 -->
-      <text x="88" y="50">15</text>
-      <!-- 20 -->
-      <text x="92" y="67">20</text>
-      <!-- 25 -->
-      <text x="77" y="82">25</text>
-      <!-- 30 (bottom) -->
-      <text x="50" y="88">30</text>
-      <!-- 35 -->
-      <text x="23" y="82">35</text>
-      <!-- 40 -->
-      <text x="8" y="67">40</text>
-      <!-- 45 -->
-      <text x="12" y="50">45</text>
-      <!-- 50 -->
-      <text x="8" y="33">50</text>
-      <!-- 55 -->
-      <text x="23" y="18">55</text>
+      <line x1="50" y1="4" x2="50" y2="10" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 1 o'clock (5 min) - 30° -->
+      <line x1="74.98" y1="7.63" x2="71.99" y2="12.17" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 2 o'clock (10 min) - 60° -->
+      <line x1="92.37" y1="23.00" x2="88.98" y2="26.50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 3 o'clock (15 min) - 90° -->
+      <line x1="96" y1="50" x2="90" y2="50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 4 o'clock (20 min) - 120° -->
+      <line x1="92.37" y1="77.00" x2="88.98" y2="73.50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 5 o'clock (25 min) - 150° -->
+      <line x1="74.98" y1="92.37" x2="71.99" y2="87.83" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 6 o'clock (30 min) - 180° -->
+      <line x1="50" y1="96" x2="50" y2="90" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 7 o'clock (35 min) - 210° -->
+      <line x1="25.02" y1="92.37" x2="28.01" y2="87.83" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 8 o'clock (40 min) - 240° -->
+      <line x1="7.63" y1="77.00" x2="11.02" y2="73.50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 9 o'clock (45 min) - 270° -->
+      <line x1="4" y1="50" x2="10" y2="50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 10 o'clock (50 min) - 300° -->
+      <line x1="7.63" y1="23.00" x2="11.02" y2="26.50" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+      <!-- 11 o'clock (55 min) - 330° -->
+      <line x1="25.02" y1="7.63" x2="28.01" y2="12.17" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
     </g>
 
     <!-- Hour hand (diamond shape, shorter) -->
