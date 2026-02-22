@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Claude Session Replay</title>
+    <script>const LANG = '{{ lang }}';</script>
     <style>
         * {
             margin: 0;
@@ -275,15 +276,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎬 Claude Session Replay - Web UI</h1>
+        <h1 data-i18n="title">🎬 Claude Session Replay - Web UI</h1>
 
         <div class="main-grid">
             <!-- Left: Controls -->
             <div class="panel">
-                <h2>⚙️ Settings</h2>
+                <h2 data-i18n="settings">⚙️ Settings</h2>
 
                 <div class="form-group">
-                    <label>Agent:</label>
+                    <label data-i18n="agent">Agent:</label>
                     <div class="button-group">
                         <button class="agent-btn active" data-agent="claude">Claude</button>
                         <button class="agent-btn" data-agent="codex">Codex</button>
@@ -291,18 +292,18 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Format:</label>
+                    <label data-i18n="format">Format:</label>
                     <div class="button-group">
                         <button class="format-btn active" data-format="md">Markdown</button>
                         <button class="format-btn" data-format="html">HTML</button>
                         <button class="format-btn" data-format="player">🕐 Player*</button>
                         <button class="format-btn" data-format="terminal">Terminal</button>
                     </div>
-                    <small style="color: #666; margin-top: 8px; display: block;">* Player には Alibai Mode（時計表示、再生モード）が含まれます</small>
+                    <small style="color: #666; margin-top: 8px; display: block;" data-i18n="player_note">* Player には Alibai Mode（時計表示、再生モード）が含まれます</small>
                 </div>
 
                 <div class="form-group">
-                    <label>Theme:</label>
+                    <label data-i18n="theme">Theme:</label>
                     <div class="button-group">
                         <button class="theme-btn active" data-theme="light">Light</button>
                         <button class="theme-btn" data-theme="console">Dark</button>
@@ -310,37 +311,37 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Range (e.g., 1-50,53-):</label>
-                    <input type="text" id="rangeInput" placeholder="Leave empty for all">
+                    <label data-i18n="range">Range (e.g., 1-50,53-):</label>
+                    <input type="text" id="rangeInput" placeholder="Leave empty for all" data-i18n-ph="range_placeholder">
                 </div>
 
                 <div class="form-group">
-                    <label>🕐 Alibai スタート時刻 (HH:MM):</label>
-                    <input type="text" id="alibaiTimeInput" placeholder="e.g., 21:33 (Player のみ)">
-                    <small style="color: #666; margin-top: 4px; display: block;">Player フォーマット使用時に有効</small>
+                    <label data-i18n="alibai_label">🕐 Alibai スタート時刻 (HH:MM):</label>
+                    <input type="text" id="alibaiTimeInput" placeholder="e.g., 21:33 (Player のみ)" data-i18n-ph="alibai_placeholder">
+                    <small style="color: #666; margin-top: 4px; display: block;" data-i18n="alibai_note">Player フォーマット使用時に有効</small>
                 </div>
 
                 <div class="form-group">
-                    <label>Output Path:</label>
+                    <label data-i18n="output_label">Output Path:</label>
                     <div style="display: flex; gap: 8px;">
-                        <input type="text" id="outputInput" placeholder="Leave empty for display only">
-                        <button type="button" id="browseBtn" style="width: auto; padding: 8px 12px;">📁 Browse</button>
+                        <input type="text" id="outputInput" placeholder="Leave empty for display only" data-i18n-ph="output_placeholder">
+                        <button type="button" id="browseBtn" style="width: auto; padding: 8px 12px;" data-i18n="browse">📁 Browse</button>
                     </div>
                 </div>
             </div>
 
             <!-- Center: Sessions & Preview -->
             <div class="panel">
-                <h2>📋 Sessions</h2>
+                <h2 data-i18n="sessions">📋 Sessions</h2>
                 <ul class="sessions-list" id="sessionsList"></ul>
-                <h2 style="margin-top: 20px;">👁️ Preview</h2>
-                <div class="preview" id="preview">Select a session to preview...</div>
+                <h2 style="margin-top: 20px;" data-i18n="preview_heading">👁️ Preview</h2>
+                <div class="preview" id="preview" data-i18n="preview_placeholder">Select a session to preview...</div>
             </div>
 
             <!-- Right: Status -->
             <div class="panel">
-                <h2>ℹ️ Info</h2>
-                <p id="sessionInfo" style="font-size: 13px; line-height: 1.6; color: #aaa;">
+                <h2 data-i18n="info">ℹ️ Info</h2>
+                <p id="sessionInfo" style="font-size: 13px; line-height: 1.6; color: #aaa;" data-i18n="info_placeholder">
                     Select a session to view details...
                 </p>
             </div>
@@ -348,8 +349,8 @@
 
         <!-- Controls -->
         <div class="controls">
-            <button id="runBtn" style="background: #4a9eff; border-color: #4a9eff; font-weight: bold;">▶️ Run Conversion</button>
-            <button id="resetBtn">🔄 Reset</button>
+            <button id="runBtn" style="background: #4a9eff; border-color: #4a9eff; font-weight: bold;" data-i18n="run">▶️ Run Conversion</button>
+            <button id="resetBtn" data-i18n="reset">🔄 Reset</button>
         </div>
 
         <!-- Messages -->
@@ -357,14 +358,14 @@
 
         <!-- Output -->
         <div class="panel" id="outputPanel" style="display: none;">
-            <h2>📤 Output</h2>
+            <h2 data-i18n="output_heading">📤 Output</h2>
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>Processing...</p>
+                <p data-i18n="processing">Processing...</p>
             </div>
             <div id="outputButtons" style="display: flex; gap: 10px;">
-                <button id="viewBtn" style="flex: 1; padding: 12px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">🔍 新タブで表示</button>
-                <button id="downloadBtn" style="flex: 1; padding: 12px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">💾 ダウンロード</button>
+                <button id="viewBtn" style="flex: 1; padding: 12px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;" data-i18n="view_btn">🔍 新タブで表示</button>
+                <button id="downloadBtn" style="flex: 1; padding: 12px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;" data-i18n="download_btn">💾 ダウンロード</button>
             </div>
             <div class="output-area" id="outputArea" style="display: none;"></div>
         </div>
@@ -435,9 +436,10 @@
                         list.appendChild(li);
                     });
                     selectedSession = null;
-                    document.getElementById('preview').textContent = 'Select a session to preview...';
+                    const dict = I18N[LANG] || I18N.en;
+                    document.getElementById('preview').textContent = dict.preview_placeholder;
                 })
-                .catch(err => showMessage(`Error loading sessions: ${err}`, 'error'));
+                .catch(err => showMessage(`${MSG[LANG].load_error}${err}`, 'error'));
         }
 
         function selectSession(session, element) {
@@ -453,7 +455,8 @@
             })
             .then(r => r.json())
             .then(data => {
-                document.getElementById('preview').textContent = data.preview || 'No preview available';
+                const dict = I18N[LANG] || I18N.en;
+                document.getElementById('preview').textContent = data.preview || dict.no_preview;
             })
             .catch(err => console.error(err));
 
@@ -470,7 +473,7 @@
 
         document.getElementById('runBtn').addEventListener('click', async () => {
             if (!selectedSession) {
-                showMessage('Please select a session first', 'error');
+                showMessage(MSG[LANG].select_session, 'error');
                 return;
             }
 
@@ -507,7 +510,7 @@
                 if (data.success) {
                     lastConversionResult = data;
                     document.getElementById('outputButtons').style.display = 'flex';
-                    showMessage('Conversion complete!', 'success');
+                    showMessage(MSG[LANG].conversion_complete, 'success');
                 }
             } catch (err) {
                 document.getElementById('loading').style.display = 'none';
@@ -566,7 +569,7 @@
             document.getElementById('outputButtons').style.display = 'none';
             document.getElementById('outputArea').innerHTML = '';
             lastConversionResult = null;
-            showMessage('Reset', 'success');
+            showMessage(MSG[LANG].reset_complete, 'success');
         });
 
         function showMessage(msg, type) {
@@ -589,6 +592,98 @@
             };
             return text.replace(/[&<>"']/g, m => map[m]);
         }
+
+        // Internationalization (i18n)
+        const I18N = {
+            ja: {
+                title: '🎬 Claude Session Replay - Web UI',
+                settings: '⚙️ 設定',
+                agent: 'エージェント:',
+                format: 'フォーマット:',
+                player_note: '* Player には Alibai Mode（時計表示、再生モード）が含まれます',
+                theme: 'テーマ:',
+                range: 'Range (例: 1-50,53-):',
+                range_placeholder: '空白で全件',
+                alibai_label: '🕐 Alibai スタート時刻 (HH:MM):',
+                alibai_placeholder: '例: 21:33 (Player のみ)',
+                alibai_note: 'Player フォーマット使用時に有効',
+                output_label: '出力パス:',
+                output_placeholder: '空白でブラウザ表示のみ',
+                browse: '📁 参照',
+                sessions: '📋 セッション',
+                preview_heading: '👁️ プレビュー',
+                preview_placeholder: 'セッションを選択してください...',
+                info: 'ℹ️ 情報',
+                info_placeholder: 'セッションを選択すると詳細が表示されます...',
+                run: '▶️ 変換実行',
+                reset: '🔄 リセット',
+                output_heading: '📤 出力',
+                processing: '処理中...',
+                view_btn: '🔍 新タブで表示',
+                download_btn: '💾 ダウンロード'
+            },
+            en: {
+                title: '🎬 Claude Session Replay - Web UI',
+                settings: '⚙️ Settings',
+                agent: 'Agent:',
+                format: 'Format:',
+                player_note: '* Player includes Alibai Mode (clock display, playback modes)',
+                theme: 'Theme:',
+                range: 'Range (e.g., 1-50,53-):',
+                range_placeholder: 'Leave empty for all',
+                alibai_label: '🕐 Alibai Start Time (HH:MM):',
+                alibai_placeholder: 'e.g., 21:33 (Player only)',
+                alibai_note: 'Effective when using Player format',
+                output_label: 'Output Path:',
+                output_placeholder: 'Leave empty for display only',
+                browse: '📁 Browse',
+                sessions: '📋 Sessions',
+                preview_heading: '👁️ Preview',
+                preview_placeholder: 'Select a session to preview...',
+                info: 'ℹ️ Info',
+                info_placeholder: 'Select a session to view details...',
+                run: '▶️ Run Conversion',
+                reset: '🔄 Reset',
+                output_heading: '📤 Output',
+                processing: 'Processing...',
+                view_btn: '🔍 View in New Tab',
+                download_btn: '💾 Download'
+            }
+        };
+
+        const MSG = {
+            ja: {
+                load_error: 'セッションの読み込みに失敗しました: ',
+                no_preview: 'プレビューがありません',
+                select_session: 'まずセッションを選択してください',
+                conversion_complete: '変換完了！',
+                reset_complete: 'リセット'
+            },
+            en: {
+                load_error: 'Error loading sessions: ',
+                no_preview: 'No preview available',
+                select_session: 'Please select a session first',
+                conversion_complete: 'Conversion complete!',
+                reset_complete: 'Reset'
+            }
+        };
+
+        function applyTranslations() {
+            const dict = I18N[LANG] || I18N.en;
+            // Apply textContent to elements with data-i18n
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.dataset.i18n;
+                if (dict[key]) el.textContent = dict[key];
+            });
+            // Apply placeholder to input elements with data-i18n-ph
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+                const key = el.dataset.i18nPh;
+                if (dict[key]) el.placeholder = dict[key];
+            });
+        }
+
+        // Apply translations when DOM is ready
+        document.addEventListener('DOMContentLoaded', applyTranslations);
 
         // Load sessions on startup
         loadSessions();

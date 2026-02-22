@@ -90,7 +90,9 @@ def _apply_alibai_offset(model_path, alibai_time):
 @app.route('/')
 def index():
     """Render main page."""
-    return render_template('index.html')
+    accept_lang = request.headers.get('Accept-Language', '')
+    lang = 'ja' if 'ja' in accept_lang else 'en'
+    return render_template('index.html', lang=lang)
 
 
 @app.route('/api/sessions/<agent>')

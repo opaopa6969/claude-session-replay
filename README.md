@@ -1,5 +1,7 @@
 # claude-session-replay
 
+🇯🇵 日本語 | [🇺🇸 English](README.en.md)
+
 Claude Code / Codex のセッションログ (JSONL) を **共通モデル(JSON)** に変換し、Markdown / HTML / MP4 / インタラクティブプレイヤーに出力するツール。
 
 ## Demo
