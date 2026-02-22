@@ -47,7 +47,15 @@ python3 log-replay.py --agent codex <input.jsonl> -f terminal
 ### TUI モード (対話型 GUI)
 
 ```bash
+# 簡単: 専用ランチャーを使用 (推奨)
+./tui
+
+# または venv を有効化してから実行
+source .venv/bin/activate
 python3 log_replay_tui.py
+
+# または venv 内の Python を直接使用
+.venv/bin/python3 log_replay_tui.py
 ```
 
 TUIを使用すると以下の操作がGUI上でできます:

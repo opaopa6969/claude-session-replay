@@ -1,0 +1,12 @@
+#!/bin/bash
+# TUI launcher - automatically uses venv if available
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python3"
+
+if [ -f "$VENV_PYTHON" ]; then
+    "$VENV_PYTHON" "$SCRIPT_DIR/log_replay_tui.py" "$@"
+else
+    echo "Error: Virtual environment not found."
+    echo "Please run: source .venv/bin/activate"
+    exit 1
+fi
