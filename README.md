@@ -14,6 +14,25 @@ Claude Code / Codex のセッションログ (JSONL) を **共通モデル(JSON)
 ~/.claude/projects/<プロジェクトパス>/*.jsonl
 ```
 
+## インストール
+
+### 基本 (推奨・外部依存なし)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+```
+
+### TUI有効化 (Textual 使用)
+
+TUI モードを使う場合は `textual` をインストール:
+
+```bash
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install textual
+```
+
 ## 使い方 (新構成)
 
 ### ラッパー (推奨)
@@ -25,25 +44,64 @@ python3 log-replay.py --agent codex <input.jsonl> -f terminal
 
 入力ファイルを省略すると、各エージェント用の一覧から選択できます。
 
+### TUI モード (対話型 GUI)
+
+```bash
+python3 log_replay_tui.py
+```
+
+TUIを使用すると以下の操作がGUI上でできます:
+
+**セッション選択**:
+- Agent を選択 (Claude / Codex)
+- セッションリストから対象を選択
+- 右パネルにプレビュー表示
+
+**オプション設定**:
+- **Format**: md / html / player / terminal
+- **Theme**: light / console (HTML系フォーマットに適用)
+- **Range**: メッセージ範囲指定 (例: `1-50,53-`)
+- **Output**: 出力ファイルパス (空白で stdout)
+
+**実行**:
+- Run ボタンで変換・レンダリング実行
+- 完了時に通知表示
+
+**キー操作**:
+- `q`: 終了
+
 ### MP4 出力 (別スクリプト)
 
 `log-replay-mp4.py` は HTML プレイヤーをヘッドレスブラウザで再生し、録画して MP4 にします。
-外部依存が必要です。
+Playwright と FFmpeg が必要です。
 
 セットアップ:
 
 ```bash
-# Ubuntu例
+# Ubuntu/Debian 例
 sudo apt-get update
-sudo apt-get install -y python3 python3-pip ffmpeg
-python3 -m venv .venv
+sudo apt-get install -y ffmpeg
+
+# Python 依存をインストール
 source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install playwright
-python -m playwright install
+python3 -m pip install --upgrade pip
+python3 -m pip install playwright
+python3 -m playwright install
 ```
 
-macOS(Homebrew)でシステムPythonがPEP668の場合は、必ずvenvを使ってください。
+```bash
+# macOS 例 (Homebrew)
+brew install ffmpeg
+
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install playwright
+python3 -m playwright install
+```
+
+macOS でシステム Python が PEP668 で保護されている場合は、必ず venv を使用してください。
+
+使用例:
 
 ```bash
 python3 log-replay-mp4.py --agent claude <input.jsonl> -f player -o out.mp4 --width 1280 --height 720 --fps 30 --speed 2.0
@@ -204,8 +262,41 @@ Claude Code のターミナルUIを忠実に再現したプレイヤー。
 
 ## 動作環境
 
+### 必須
 - Python 3.6+
-- 外部ライブラリ不要 (標準ライブラリのみ)
+- 外部ライブラリ不要 (標準ライブラリのみ) — 基本的な CLI 機能
+
+### オプション (機能に応じて)
+
+| 機能 | 依存パッケージ | インストール |
+|---|---|---|
+| TUI モード (対話型 GUI) | `textual` | `pip install textual` |
+| MP4 出力 | `playwright`, `ffmpeg` | `pip install playwright && playwright install && apt/brew install ffmpeg` |
+| ANSI カラー HTML | なし | 標準機能 |
+
+### インストール方法
+
+**基本のみ**:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+# 追加インストール不要
+```
+
+**TUI + MP4 対応**:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install textual playwright
+
+# FFmpeg をシステムにインストール
+# Ubuntu/Debian: sudo apt-get install ffmpeg
+# macOS: brew install ffmpeg
+# Windows: choco install ffmpeg (または https://ffmpeg.org から DL)
+
+python3 -m playwright install
+```
 
 ## 旧スクリプト
 
