@@ -23,17 +23,24 @@ python3 -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 
-### TUI有効化 (Textual 使用)
+### Web UI + MP4 対応
 
-TUI モードを使う場合は `textual` をインストール:
+Web UI と MP4 出力機能を使う場合:
 
 ```bash
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
-python3 -m pip install textual
+python3 -m pip install flask playwright
+
+# FFmpeg をシステムにインストール
+# Ubuntu/Debian: sudo apt-get install ffmpeg
+# macOS: brew install ffmpeg
+# Windows: choco install ffmpeg
+
+python3 -m playwright install
 ```
 
-## 使い方 (新構成)
+## 使い方
 
 ### CLI ラッパー (推奨・最も安定)
 
@@ -53,51 +60,56 @@ python3 log-replay.py --agent claude -f html -t light   # HTML Light テーマ
 - `--project`: Claude プロジェクト名でフィルター
 - `--filter`: Codex パスでフィルター
 
-### TUI モード (対話型 GUI - 実験的)
+### Web UI (推奨・ブラウザベース) 🌐
 
-⚠️ **注**: textual 8.0.0 との互換性問題により、ボタンテキストが表示されない場合があります。上記の CLI ラッパー (`log-replay.py`) をお勧めします。
+インタラクティブなWeb UIでセッションを管理・変換・再生できます。
 
 ```bash
-# 専用ランチャー
-./tui
-
-# または直接実行
-.venv/bin/python3 log_replay_tui.py
+source .venv/bin/activate
+python3 web_ui.py
 ```
 
-機能（セッション選択と基本操作は動作）:
+ブラウザで `http://localhost:5000` を開いてください。
 
-**Agent 選択** (上部):
-- **Claude** ボタン: Claude Code セッション
-- **Codex** ボタン: Codex セッション
-- 選択中のボタンはハイライト表示
+![Web UI Screenshot](docs/media/screenshot1.png)
 
-**セッション選択** (左パネル):
-- セッションリストから対象を選択
-- 右パネルにプレビューメッセージが表示される
+**機能**:
 
-**フォーマット選択** (md / html / player / terminal):
-- ボタンをクリックして選択
-- 選択中は色が変わる
+**セッション管理**:
+- Claude Code / Codex セッションの自動検出
+- セッション一覧から選択
+- プレビューメッセージの表示
 
-**テーマ選択** (light / console):
-- HTMLベースのフォーマット用
-- light: ライトテーマ
-- console: ダークテーマ
+**フォーマット選択**:
+- **md** - Markdownテキスト出力
+- **html** - 静的HTMLチャット表示
+- **player** - インタラクティブ再生プレイヤー
+- **terminal** - Claude Code ターミナルUI風
 
-**詳細オプション**:
+**テーマ選択**:
+- **light** - ライトテーマ
+- **console** - ダークテーマ
+
+**アリバイモード (Alibai Mode)** ✨:
+- タイムスタンプに基づく時間表示（Rolex風アナログ時計）
+- **再生モード**:
+  - 均一間隔（デフォルト）
+  - 実際の時間差を尊重
+  - セッション全体を60秒に圧縮
+- Session Statistics パネルで統計情報をリアルタイム表示
+
+**オプション**:
 - **Range**: メッセージ範囲指定 (例: `1-50,53-`)
-- **Output**: 出力ファイルパス (空白で stdout)
+- **Output**: ファイル保存またはブラウザ表示
+- **Alibai Time**: タイムスタンプ調整（HH:MM形式）
 
-**実行**:
-- Run ボタンで変換・レンダリング実行
-- 完了時に画面下部に通知表示
-
-**キーボード操作**:
-- `Tab` / `Shift+Tab`: フォーカス移動
-- `↑` `↓`: セッションリスト上下移動
-- `Enter`: 入力フィールド確定
-- `q`: 終了
+**プレイヤー操作**:
+- `Space` - 再生/一時停止
+- `←` `→` - 前後のメッセージ
+- `Home` `End` - 最初/最後へジャンプ
+- `g` - 指定時刻へジャンプ
+- `j` `k` - メッセージスクロール
+- 速度スライダー: 0.25x ~ 16x
 
 ### MP4 出力 (別スクリプト)
 
@@ -299,25 +311,25 @@ Claude Code のターミナルUIを忠実に再現したプレイヤー。
 
 | 機能 | 依存パッケージ | インストール |
 |---|---|---|
-| TUI モード (対話型 GUI) | `textual` | `pip install textual` |
+| Web UI (ブラウザGUI) | `flask`, `playwright` | `pip install flask playwright && playwright install` |
 | MP4 出力 | `playwright`, `ffmpeg` | `pip install playwright && playwright install && apt/brew install ffmpeg` |
 | ANSI カラー HTML | なし | 標準機能 |
 
 ### インストール方法
 
-**基本のみ**:
+**基本のみ (CLI)**:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 # 追加インストール不要
 ```
 
-**TUI + MP4 対応**:
+**Web UI + MP4 対応** (推奨):
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
-python3 -m pip install textual playwright
+python3 -m pip install flask playwright
 
 # FFmpeg をシステムにインストール
 # Ubuntu/Debian: sudo apt-get install ffmpeg
