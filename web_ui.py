@@ -550,8 +550,10 @@ def apply_to_output():
                         filters_json = json.dumps(filters)
                         render_cmd.extend(["--filters", filters_json])
 
-                    # Add truncate length
-                    if truncate_length is not None:
+                    # Add truncate length (0 = no truncate)
+                    if truncate_length is None:
+                        render_cmd.extend(["--truncate", "0"])
+                    else:
                         render_cmd.extend(["--truncate", str(truncate_length)])
 
                     result = subprocess.run(render_cmd, capture_output=True, text=True, timeout=60)
