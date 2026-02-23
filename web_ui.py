@@ -468,6 +468,7 @@ def apply_to_output():
         range_filter = data.get("range")
         alibai_time = data.get("alibai_time")
         edits = data.get("edits", [])
+        filters = data.get("filters", {})
 
         if not all([agent, session_path, format_type]):
             return jsonify({"error": "Missing required parameters"}), 400
@@ -542,6 +543,11 @@ def apply_to_output():
 
                     if range_filter:
                         render_cmd.extend(["-r", range_filter])
+
+                    # Add filters as JSON
+                    if filters:
+                        filters_json = json.dumps(filters)
+                        render_cmd.extend(["--filters", filters_json])
 
                     result = subprocess.run(render_cmd, capture_output=True, text=True, timeout=60)
                     if result.returncode != 0:

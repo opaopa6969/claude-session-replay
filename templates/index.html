@@ -499,6 +499,32 @@
                         <button type="button" id="browseBtn" style="width: auto; padding: 8px 12px;" data-i18n="browse">📁 Browse</button>
                     </div>
                 </div>
+
+                <div class="form-group">
+                    <label style="margin-bottom: 10px; display: block;">📋 Output Filters:</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="checkbox" id="filterThinking" checked style="cursor: pointer;">
+                            <span>💭 Thinking</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="checkbox" id="filterToolUse" checked style="cursor: pointer;">
+                            <span>🔧 Tool Use</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="checkbox" id="filterToolResult" checked style="cursor: pointer;">
+                            <span>📋 Tool Result</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="checkbox" id="filterProgress" style="cursor: pointer;">
+                            <span>⏳ Progress</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="checkbox" id="filterFileHistory" style="cursor: pointer;">
+                            <span>📁 File History</span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <!-- Center: Sessions & Preview/Editor -->
@@ -1168,6 +1194,15 @@
                     deleted: msg.deleted
                 }));
 
+                // Collect output filters
+                const filters = {
+                    thinking: document.getElementById('filterThinking').checked,
+                    tool_use: document.getElementById('filterToolUse').checked,
+                    tool_result: document.getElementById('filterToolResult').checked,
+                    progress: document.getElementById('filterProgress').checked,
+                    file_history: document.getElementById('filterFileHistory').checked
+                };
+
                 const response = await fetch('/api/apply-to-output', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1178,7 +1213,8 @@
                         theme: selectedTheme,
                         range: document.getElementById('rangeInput').value,
                         alibai_time: document.getElementById('alibaiTimeInput').value,
-                        edits: edits
+                        edits: edits,
+                        filters: filters
                     })
                 });
 

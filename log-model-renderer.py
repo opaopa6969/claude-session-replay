@@ -308,7 +308,10 @@ def markdown_to_html_simple(text, ansi_mode="strip"):
 # Markdown output
 # ---------------------------------------------------------------------------
 
-def convert_to_markdown(model, input_path, ansi_mode="strip", range_spec=None):
+def convert_to_markdown(model, input_path, ansi_mode="strip", range_spec=None, filters=None):
+    if filters is None:
+        filters = {}
+
     lines = []
     lines.append("# Session Transcript\n")
     lines.append(f"Source: `{os.path.basename(input_path)}`\n")
@@ -323,9 +326,9 @@ def convert_to_markdown(model, input_path, ansi_mode="strip", range_spec=None):
             message_number += 1
 
         text = _extract_text_from_model(entry)
-        tool_uses = _extract_tool_uses_from_model(entry)
-        tool_results = _extract_tool_results_from_model(entry)
-        thinking = _extract_thinking_from_model(entry)
+        tool_uses = _extract_tool_uses_from_model(entry) if filters.get("tool_use", True) else []
+        tool_results = _extract_tool_results_from_model(entry) if filters.get("tool_result", True) else []
+        thinking = _extract_thinking_from_model(entry) if filters.get("thinking", True) else []
 
         if not text.strip() and not tool_uses and not tool_results and not thinking:
             continue
@@ -364,7 +367,7 @@ def convert_to_markdown(model, input_path, ansi_mode="strip", range_spec=None):
                     truncated = result_text[:500]
                     if len(result_text) > 500:
                         truncated += "\n... (truncated)"
-                    lines.append("\n<details><summary>Tool Result</summary>\n")
+                    lines.append("\n<details open><summary>Tool Result</summary>\n")
                     lines.append(f"```\n{truncated}\n```\n")
                     lines.append("</details>\n")
 
@@ -599,6 +602,7 @@ HTML_TEMPLATE = """\
     margin-top: 8px;
     padding: 8px;
     background: var(--result-bg);
+    color: var(--result-color);
     border-radius: 4px;
     font-size: 0.9em;
     white-space: pre-wrap;
@@ -683,7 +687,7 @@ def format_tool_use_html(tool_use):
     return f'<span class="tool-name">{escape(name)}</span>'
 
 
-def convert_to_html(model, input_path, theme="light", ansi_mode="strip", range_spec=None):
+def convert_to_html(model, input_path, theme="light", ansi_mode="strip", range_spec=None, filters=None):
     message_blocks = []
     message_number = 0
 
@@ -733,7 +737,7 @@ def convert_to_html(model, input_path, theme="light", ansi_mode="strip", range_s
                     truncated = escape(result_text[:500])
                     if len(result_text) > 500:
                         truncated += "\n... (truncated)"
-                    parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
+                    parts.append(f"<details open><summary>Tool Result</summary><pre>{truncated}</pre></details>")
 
         message_blocks.append(f'<div class="message {wrapper_class}">\n' + "\n".join(parts) + "\n</div>")
 
@@ -1709,7 +1713,7 @@ def _create_time_label(timestamp, session_start_ts=None):
         return ""
 
 
-def convert_to_player(model, input_path, theme="console", ansi_mode="strip", range_spec=None):
+def convert_to_player(model, input_path, theme="console", ansi_mode="strip", range_spec=None, filters=None):
     message_blocks = []
     message_number = 0
 
@@ -1763,7 +1767,7 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                             truncated = truncated
                         if len(result_text) > 500:
                             truncated += "\n... (truncated)"
-                        parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
+                        parts.append(f"<details open><summary>Tool Result</summary><pre>{truncated}</pre></details>")
             content = "\n".join(parts)
             message_blocks.append(f'<div class="message user"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
@@ -1812,7 +1816,7 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                         if len(result_text) > 500:
                             truncated += "\n... (truncated)"
                         tool_parts = []
-                        tool_parts.append(f"<details><summary>Tool Result</summary><pre>{truncated}</pre></details>")
+                        tool_parts.append(f"<details open><summary>Tool Result</summary><pre>{truncated}</pre></details>")
                         content = "\n".join(tool_parts)
                         message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
@@ -2366,7 +2370,7 @@ TERMINAL_TEMPLATE = """\
 """
 
 
-def convert_to_terminal(model, input_path, ansi_mode="strip", range_spec=None):
+def convert_to_terminal(model, input_path, ansi_mode="strip", range_spec=None, filters=None):
     message_blocks = []
     message_number = 0
 
@@ -2482,7 +2486,23 @@ def main():
                         help="ANSI handling: strip or color (HTML)")
     parser.add_argument("-r", "--range", dest="range_spec",
                         help="message range like '1-50,53-' (1-based, comma-separated)")
+    parser.add_argument("--filters", dest="filters_json",
+                        help="JSON string of output filters: {\"thinking\": true, \"tool_use\": true, ...}")
     args = parser.parse_args()
+
+    # Parse filters
+    filters = {
+        "thinking": True,
+        "tool_use": True,
+        "tool_result": True,
+        "progress": False,
+        "file_history": False
+    }
+    if args.filters_json:
+        try:
+            filters.update(json.loads(args.filters_json))
+        except json.JSONDecodeError:
+            pass
 
     with open(args.input, "r", encoding="utf-8") as f:
         model = json.load(f)
@@ -2494,13 +2514,13 @@ def main():
         output_path = os.path.splitext(args.input)[0] + extension
 
     if args.format == "terminal":
-        result = convert_to_terminal(model, args.input, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
+        result = convert_to_terminal(model, args.input, ansi_mode=args.ansi_mode, range_spec=args.range_spec, filters=filters)
     elif args.format == "player":
-        result = convert_to_player(model, args.input, theme=args.theme, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
+        result = convert_to_player(model, args.input, theme=args.theme, ansi_mode=args.ansi_mode, range_spec=args.range_spec, filters=filters)
     elif args.format == "html":
-        result = convert_to_html(model, args.input, theme=args.theme, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
+        result = convert_to_html(model, args.input, theme=args.theme, ansi_mode=args.ansi_mode, range_spec=args.range_spec, filters=filters)
     else:
-        result = convert_to_markdown(model, args.input, ansi_mode=args.ansi_mode, range_spec=args.range_spec)
+        result = convert_to_markdown(model, args.input, ansi_mode=args.ansi_mode, range_spec=args.range_spec, filters=filters)
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(result)
