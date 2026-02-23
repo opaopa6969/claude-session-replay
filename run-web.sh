@@ -1,14 +1,30 @@
 #!/bin/bash
 # Run Web UI for Claude Session Replay
+# Automatically creates venv and installs dependencies
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python3"
+VENV_DIR="$SCRIPT_DIR/.venv"
+VENV_PYTHON="$VENV_DIR/bin/python3"
 
-if [ ! -f "$VENV_PYTHON" ]; then
-    echo "Error: Virtual environment not found."
-    echo "Please run: python3 -m venv .venv && source .venv/bin/activate && pip install flask"
+# Create virtual environment if it doesn't exist
+if [ ! -d "$VENV_DIR" ]; then
+    echo "📦 Creating virtual environment..."
+    python3 -m venv "$VENV_DIR"
+fi
+
+# Activate venv and install/upgrade dependencies
+echo "📥 Installing dependencies..."
+"$VENV_PYTHON" -m pip install --upgrade pip flask playwright > /dev/null 2>&1
+
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to install dependencies"
     exit 1
 fi
 
-echo "Starting Web UI at http://localhost:5000"
+echo ""
+echo "✅ Web UI is starting at http://localhost:5000"
+echo "   Press Ctrl+C to stop"
+echo ""
+
+# Start the Web UI
 "$VENV_PYTHON" "$SCRIPT_DIR/web_ui.py"

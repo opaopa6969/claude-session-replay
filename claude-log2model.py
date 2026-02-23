@@ -32,6 +32,14 @@ def _extract_tool_results(content):
     return [block for block in content if isinstance(block, dict) and block.get("type") == "tool_result"]
 
 
+def _extract_thinking_from_content(content):
+    """Extract thinking blocks from content list."""
+    if not isinstance(content, list):
+        return []
+    return [block.get("thinking", "") for block in content
+            if isinstance(block, dict) and block.get("type") == "thinking"]
+
+
 def _format_tool_result_content(content):
     if isinstance(content, str):
         return content
@@ -72,12 +80,14 @@ def build_model(messages, input_path):
         text = _extract_text_from_content(content)
         tool_uses = _extract_tool_uses(content)
         tool_results = _extract_tool_results(content)
+        thinking = _extract_thinking_from_content(content)
 
         entry = {
             "role": role,
             "text": text.strip(),
             "tool_uses": tool_uses,
             "tool_results": [],
+            "thinking": thinking,
             "timestamp": data.get("timestamp", ""),
         }
 
@@ -87,7 +97,7 @@ def build_model(messages, input_path):
             if result_text.strip():
                 entry["tool_results"].append({"content": result_text})
 
-        if entry["text"] or entry["tool_uses"] or entry["tool_results"]:
+        if entry["text"] or entry["tool_uses"] or entry["tool_results"] or entry["thinking"]:
             model["messages"].append(entry)
 
     return model

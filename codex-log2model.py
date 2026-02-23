@@ -22,6 +22,14 @@ def _extract_text_from_codex_content(content):
     return ""
 
 
+def _extract_thinking_from_codex_content(content):
+    """Extract thinking blocks from content list."""
+    if not isinstance(content, list):
+        return []
+    return [block.get("thinking", "") for block in content
+            if isinstance(block, dict) and block.get("type") == "thinking"]
+
+
 def _safe_json_loads(value):
     if not isinstance(value, str):
         return value if isinstance(value, dict) else {}
@@ -292,6 +300,7 @@ def build_model(input_path):
                             "text": text,
                             "tool_uses": [],
                             "tool_results": [],
+                            "thinking": [],
                             "timestamp": data.get("timestamp", ""),
                         })
                 elif payload_type == "agent_message":
@@ -302,6 +311,7 @@ def build_model(input_path):
                             "text": text,
                             "tool_uses": [],
                             "tool_results": [],
+                            "thinking": [],
                             "timestamp": data.get("timestamp", ""),
                         })
                 continue
@@ -315,13 +325,16 @@ def build_model(input_path):
                 role = payload.get("role", "")
                 if role not in ("user", "assistant"):
                     continue
-                text = _extract_text_from_codex_content(payload.get("content", [])).strip()
-                if text:
+                content = payload.get("content", [])
+                text = _extract_text_from_codex_content(content).strip()
+                thinking = _extract_thinking_from_codex_content(content)
+                if text or thinking:
                     model["messages"].append({
                         "role": role,
                         "text": text,
                         "tool_uses": [],
                         "tool_results": [],
+                        "thinking": thinking,
                         "timestamp": data.get("timestamp", ""),
                     })
                 continue
@@ -334,6 +347,7 @@ def build_model(input_path):
                         "text": "",
                         "tool_uses": [tool_use],
                         "tool_results": [],
+                        "thinking": [],
                         "timestamp": data.get("timestamp", ""),
                     })
                 continue
@@ -346,6 +360,7 @@ def build_model(input_path):
                         "text": "",
                         "tool_uses": [],
                         "tool_results": [{"content": output}],
+                        "thinking": [],
                         "timestamp": data.get("timestamp", ""),
                     })
                 continue

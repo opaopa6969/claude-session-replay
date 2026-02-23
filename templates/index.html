@@ -37,6 +37,15 @@
             margin-bottom: 20px;
         }
 
+        .main-grid.editor-mode {
+            grid-template-columns: 1fr;
+        }
+
+        .main-grid.editor-mode .left-panel,
+        .main-grid.editor-mode .right-panel {
+            display: none;
+        }
+
         .panel {
             background: #2a2a2a;
             border: 1px solid #444;
@@ -155,6 +164,166 @@
             font-size: 12px;
             max-height: 800px;
             overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .editor-container {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .editor-message {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .editor-message.deleted {
+            opacity: 0.5;
+            background: #3a2a2a;
+            border-color: #664444;
+        }
+
+        .editor-message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            color: #4a9eff;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .editor-message-header .label {
+            flex: 1;
+        }
+
+        .editor-message-header .delete-btn {
+            padding: 4px 8px;
+            font-size: 12px;
+            background: #8f4a4a;
+            border-color: #8f4a4a;
+            color: #ff6a6a;
+            cursor: pointer;
+        }
+
+        .editor-message-header .delete-btn:hover {
+            background: #a05a5a;
+            border-color: #a05a5a;
+        }
+
+        .editor-message.deleted .delete-btn {
+            background: #4a8f4a;
+            border-color: #4a8f4a;
+            color: #6aff6a;
+        }
+
+        .editor-message.deleted .delete-btn:hover {
+            background: #5a9f5a;
+            border-color: #5a9f5a;
+        }
+
+        .editor-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+            margin-bottom: 8px;
+        }
+
+        .editor-textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+            background: #222;
+        }
+
+        .editor-message.deleted .editor-textarea {
+            color: #888;
+            background: #2a2a2a;
+            border-color: #555;
+        }
+
+        .editor-tools-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #444;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #999;
+            margin-top: 6px;
+        }
+
+        .editor-message[data-block="user"] {
+            border-left: 3px solid #4aff4a;
+        }
+
+        .editor-message[data-block="assistant"] {
+            border-left: 3px solid #4a9eff;
+        }
+
+        .editor-message[data-block="tool"] {
+            border-left: 3px solid #ff9f4a;
+        }
+
+        .editor-message[data-block="progress"] {
+            border-left: 3px solid #888;
+            opacity: 0.7;
+        }
+
+        .editor-message[data-block="file-history"] {
+            border-left: 3px solid #888;
+            opacity: 0.7;
+        }
+
+        .thinking-block {
+            background: rgba(232, 192, 122, 0.1);
+            border: 1px solid rgba(232, 192, 122, 0.3);
+            border-radius: 4px;
+            padding: 8px;
+            margin: 8px 0;
+            font-size: 12px;
+        }
+
+        .thinking-block-title {
+            color: #e8c07a;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .thinking-block-content {
+            background: #1a1a1a;
+            border-radius: 3px;
+            padding: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: monospace;
+            font-size: 11px;
+            color: #ccc;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .readonly-info {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 8px;
+            margin: 8px 0;
+            font-size: 12px;
+            color: #aaa;
             white-space: pre-wrap;
             word-wrap: break-word;
         }
@@ -330,12 +499,38 @@
                 </div>
             </div>
 
-            <!-- Center: Sessions & Preview -->
+            <!-- Center: Sessions & Preview/Editor -->
             <div class="panel">
                 <h2 data-i18n="sessions">📋 Sessions</h2>
                 <ul class="sessions-list" id="sessionsList"></ul>
-                <h2 style="margin-top: 20px;" data-i18n="preview_heading">👁️ Preview</h2>
-                <div class="preview" id="preview" data-i18n="preview_placeholder">Select a session to preview...</div>
+
+                <!-- Preview section -->
+                <div id="previewSection" style="display: none;">
+                    <h2 style="margin-top: 20px;" data-i18n="preview_heading">👁️ Preview</h2>
+                    <div class="preview" id="preview" style="display: block;">Select a session...</div>
+                    <button id="editBtn" style="width: 100%; margin-top: 15px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">✏️ Edit</button>
+                </div>
+
+                <!-- Editor section -->
+                <div id="editorSection" style="display: none;">
+                    <h2 style="margin-top: 20px;" data-i18n="editor_heading">✏️ Editor</h2>
+                    <div class="editor-container" id="editorContainer" style="max-height: calc(100vh - 250px); overflow-y: auto;">
+                        <div id="editorMessages"></div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                        <button id="previewBtn" style="flex: 1; min-width: 120px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">👁️ Preview</button>
+                    </div>
+                    <div id="editorButtons" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                        <button id="applyToOutputBtn" style="flex: 1; min-width: 180px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;" data-i18n="apply_to_output">💾 Apply to Output</button>
+                        <button id="applyToSessionBtn" style="flex: 1; min-width: 180px; padding: 10px; background: #8a4aff; border-color: #8a4aff; font-weight: bold;" data-i18n="apply_to_session_log">💾 Apply to Session Log</button>
+                    </div>
+                </div>
+
+                <!-- Placeholder -->
+                <div id="placeholderSection">
+                    <h2 style="margin-top: 20px;" data-i18n="preview_heading">👁️ Preview</h2>
+                    <div class="preview">Select a session to preview...</div>
+                </div>
             </div>
 
             <!-- Right: Status -->
@@ -376,6 +571,7 @@
         let selectedFormat = 'md';
         let selectedTheme = 'light';
         let selectedSession = null;
+        let editorMessages = [];  // [{idx, lineIdx, role, text, hasTools, deleted, editedText}]
 
         // Agent selection
         document.querySelectorAll('.agent-btn').forEach(btn => {
@@ -442,6 +638,356 @@
                 .catch(err => showMessage(`${MSG[LANG].load_error}${err}`, 'error'));
         }
 
+        function renderEditor() {
+            const container = document.getElementById('editorMessages');
+            container.innerHTML = '';
+
+            editorMessages.forEach(msg => {
+                const card = document.createElement('div');
+                card.className = `editor-message ${msg.deleted ? 'deleted' : ''}`;
+                card.dataset.lineIdx = msg.lineIdx;
+                card.dataset.block = msg.blockType || 'unknown';
+
+                // Block type label
+                const blockTypeLabel = msg.blockType ? msg.blockType.toUpperCase() : 'UNKNOWN';
+                const deleteBtn = msg.deleted ? 'Restore' : '✕ Delete';
+                const headerLabel = `#${msg.idx} [${blockTypeLabel}]`;
+
+                // Build header
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'editor-message-header';
+
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'label';
+                labelDiv.textContent = headerLabel;
+                headerDiv.appendChild(labelDiv);
+
+                const buttonDiv = document.createElement('div');
+                buttonDiv.style.display = 'flex';
+                buttonDiv.style.gap = '12px';
+                buttonDiv.style.alignItems = 'center';
+
+                // Edit/Apply/Cancel buttons (for editable messages)
+                if (msg.blockType === 'user' || msg.blockType === 'assistant') {
+                    const isEditing = msg.isInEditingMode;
+
+                    if (!isEditing) {
+                        // Show Edit button
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.className = 'delete-btn';
+                        editBtn.style.background = '#4a8eff';
+                        editBtn.style.borderColor = '#4a8eff';
+                        editBtn.style.color = 'white';
+                        editBtn.textContent = '✏️ Edit';
+                        editBtn.dataset.lineIdx = msg.lineIdx;
+                        editBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            editMessage(parseInt(this.dataset.lineIdx));
+                        });
+                        buttonDiv.appendChild(editBtn);
+
+                        // Show Rollback button if content has been edited and applied
+                        if (msg.editedText !== undefined && msg.editedText !== msg.text) {
+                            const rollbackBtn = document.createElement('button');
+                            rollbackBtn.type = 'button';
+                            rollbackBtn.className = 'delete-btn';
+                            rollbackBtn.style.background = '#ff9f4a';
+                            rollbackBtn.style.borderColor = '#ff9f4a';
+                            rollbackBtn.style.color = '#1e1e1e';
+                            rollbackBtn.textContent = '↶ Rollback';
+                            rollbackBtn.dataset.lineIdx = msg.lineIdx;
+                            rollbackBtn.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                rollbackEdit(parseInt(this.dataset.lineIdx));
+                            });
+                            buttonDiv.appendChild(rollbackBtn);
+                        }
+                    } else {
+                        // Show Apply and Cancel buttons
+                        const applyBtn = document.createElement('button');
+                        applyBtn.type = 'button';
+                        applyBtn.className = 'delete-btn';
+                        applyBtn.style.background = '#4aff4a';
+                        applyBtn.style.borderColor = '#4aff4a';
+                        applyBtn.style.color = '#1e1e1e';
+                        applyBtn.textContent = '✅ Apply';
+                        applyBtn.dataset.lineIdx = msg.lineIdx;
+                        applyBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            applyEdit(parseInt(this.dataset.lineIdx));
+                        });
+                        buttonDiv.appendChild(applyBtn);
+
+                        const cancelBtn = document.createElement('button');
+                        cancelBtn.type = 'button';
+                        cancelBtn.className = 'delete-btn';
+                        cancelBtn.style.background = '#ff6a6a';
+                        cancelBtn.style.borderColor = '#ff6a6a';
+                        cancelBtn.style.color = 'white';
+                        cancelBtn.textContent = '✕ Cancel';
+                        cancelBtn.dataset.lineIdx = msg.lineIdx;
+                        cancelBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            cancelEdit(parseInt(this.dataset.lineIdx));
+                        });
+                        buttonDiv.appendChild(cancelBtn);
+                    }
+                }
+
+                // Delete checkbox
+                const deleteCheckbox = document.createElement('input');
+                deleteCheckbox.type = 'checkbox';
+                deleteCheckbox.checked = msg.deleted;
+                deleteCheckbox.title = msg.deleted ? '復元' : '削除予定';
+                deleteCheckbox.style.cursor = 'pointer';
+                deleteCheckbox.style.width = '18px';
+                deleteCheckbox.style.height = '18px';
+                deleteCheckbox.onchange = () => toggleMessageDelete(msg.lineIdx);
+
+                const deleteLabel = document.createElement('label');
+                deleteLabel.style.display = 'flex';
+                deleteLabel.style.alignItems = 'center';
+                deleteLabel.style.gap = '6px';
+                deleteLabel.style.cursor = 'pointer';
+                deleteLabel.style.fontSize = '12px';
+                deleteLabel.style.color = msg.deleted ? '#ff6a6a' : '#aaa';
+                deleteLabel.textContent = msg.deleted ? '復元' : '削除';
+                deleteLabel.appendChild(deleteCheckbox);
+                buttonDiv.appendChild(deleteLabel);
+
+                headerDiv.appendChild(buttonDiv);
+                card.appendChild(headerDiv);
+
+                // Handle different block types
+                if (msg.blockType === 'user' || msg.blockType === 'assistant') {
+                    // Editable text for user and assistant messages
+                    const currentText = msg.editedText !== undefined ? msg.editedText : msg.text;
+
+                    // Show tool results if present (for user messages with tool results)
+                    if (msg.tool_results && msg.tool_results.length > 0) {
+                        msg.tool_results.forEach((result, idx) => {
+                            const resultDiv = document.createElement('div');
+                            resultDiv.className = 'readonly-info';
+                            const resultContent = typeof result.content === 'string'
+                                ? result.content.substring(0, 150)
+                                : JSON.stringify(result.content).substring(0, 150);
+                            resultDiv.textContent = `📋 Tool Result: ${resultContent}`;
+                            card.appendChild(resultDiv);
+                        });
+                    }
+
+                    // Show thinking blocks for assistant
+                    if (msg.blockType === 'assistant' && msg.thinking && msg.thinking.length > 0) {
+                        msg.thinking.forEach((thought, idx) => {
+                            if (thought.trim()) {
+                                const thinkingDiv = document.createElement('div');
+                                thinkingDiv.className = 'thinking-block';
+                                thinkingDiv.innerHTML = `
+                                    <div class="thinking-block-title">💭 思考 ${idx > 0 ? `#${idx + 1}` : ''}</div>
+                                    <div class="thinking-block-content">${escapeHtml(thought.trim())}</div>
+                                `;
+                                card.appendChild(thinkingDiv);
+                            }
+                        });
+                    }
+
+                    // Add label if thinking is present
+                    if (msg.blockType === 'assistant' && msg.thinking && msg.thinking.length > 0) {
+                        const label = document.createElement('div');
+                        label.style.fontSize = '12px';
+                        label.style.color = '#aaa';
+                        label.style.marginTop = '8px';
+                        label.style.marginBottom = '4px';
+                        label.textContent = '💬 アシスタントの応答:';
+                        card.appendChild(label);
+                    }
+
+                    // Text textarea
+                    const textarea = document.createElement('textarea');
+                    textarea.className = 'editor-textarea';
+                    textarea.dataset.lineIdx = msg.lineIdx;
+
+                    // Check if currently in editing mode
+                    const isInEditingMode = msg.isInEditingMode;
+
+                    // Set placeholder based on whether there's thinking
+                    if (msg.blockType === 'assistant' && msg.thinking && msg.thinking.length > 0) {
+                        if (!currentText.trim()) {
+                            textarea.placeholder = isInEditingMode ? '思考に対応する応答を入力してください...' : '⚠️ テキストが空です。「Edit」を押して編集してください';
+                            if (!isInEditingMode) {
+                                textarea.style.borderColor = '#ff9f4a';
+                            }
+                        } else {
+                            textarea.placeholder = isInEditingMode ? 'Edit message text...' : '「Edit」を押して編集を開始します';
+                        }
+                    } else {
+                        textarea.placeholder = isInEditingMode ? 'Edit message text...' : '「Edit」を押して編集を開始します';
+                    }
+
+                    textarea.value = currentText;
+                    textarea.disabled = msg.isReadOnly || !isInEditingMode;  // Disable unless Edit is clicked
+                    card.appendChild(textarea);
+
+                    // Add event listener for text changes (only works if enabled)
+                    textarea.addEventListener('change', (e) => {
+                        const msgIdx = editorMessages.findIndex(m => m.lineIdx === parseInt(e.target.dataset.lineIdx));
+                        if (msgIdx >= 0) {
+                            editorMessages[msgIdx].editedText = e.target.value;
+                        }
+                    });
+
+                    textarea.addEventListener('input', (e) => {
+                        const msgIdx = editorMessages.findIndex(m => m.lineIdx === parseInt(e.target.dataset.lineIdx));
+                        if (msgIdx >= 0) {
+                            editorMessages[msgIdx].editedText = e.target.value;
+                        }
+                    });
+
+                    // Add tool uses if present
+                    if (msg.tool_uses && msg.tool_uses.length > 0) {
+                        msg.tool_uses.forEach((tool_use, idx) => {
+                            const toolDiv = document.createElement('div');
+                            toolDiv.className = 'readonly-info';
+                            const toolName = tool_use.name || 'Unknown';
+                            const toolInput = JSON.stringify(tool_use.input || {}).substring(0, 150);
+                            toolDiv.textContent = `🔧 ${toolName}: ${toolInput}`;
+                            card.appendChild(toolDiv);
+                        });
+                    }
+
+                    // Add tool results if present
+                    if (msg.tool_results && msg.tool_results.length > 0) {
+                        msg.tool_results.forEach((result, idx) => {
+                            const resultDiv = document.createElement('div');
+                            resultDiv.className = 'readonly-info';
+                            const resultContent = typeof result.content === 'string'
+                                ? result.content.substring(0, 150)
+                                : JSON.stringify(result.content).substring(0, 150);
+                            resultDiv.textContent = `📋 Tool Result: ${resultContent}`;
+                            card.appendChild(resultDiv);
+                        });
+                    }
+
+                } else if (msg.blockType === 'tool') {
+                    // Read-only tool info
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'readonly-info';
+                    const toolName = msg.toolName || 'Unknown Tool';
+                    const toolInput = msg.toolInput || '(no input)';
+                    infoDiv.textContent = `🔧 ${toolName}: ${toolInput.substring(0, 100)}`;
+                    card.appendChild(infoDiv);
+
+                } else if (msg.blockType === 'progress') {
+                    // Read-only progress info
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'readonly-info';
+                    infoDiv.textContent = `⏳ Progress: ${msg.text.substring(0, 100)}`;
+                    card.appendChild(infoDiv);
+
+                } else if (msg.blockType === 'file-history') {
+                    // Read-only file-history info
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'readonly-info';
+                    infoDiv.textContent = `📁 ${msg.text}`;
+                    card.appendChild(infoDiv);
+
+                } else {
+                    // Unknown type - show as read-only text
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'readonly-info';
+                    infoDiv.textContent = msg.text;
+                    card.appendChild(infoDiv);
+                }
+
+                container.appendChild(card);
+            });
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function toggleMessageDelete(lineIdx) {
+            const msgIdx = editorMessages.findIndex(m => m.lineIdx === lineIdx);
+            if (msgIdx >= 0) {
+                editorMessages[msgIdx].deleted = !editorMessages[msgIdx].deleted;
+                renderEditor();
+            }
+        }
+
+        function editMessage(lineIdx) {
+            const msgIdx = editorMessages.findIndex(m => m.lineIdx === lineIdx);
+            if (msgIdx >= 0) {
+                const msg = editorMessages[msgIdx];
+                const currentText = msg.editedText !== undefined ? msg.editedText : msg.text;
+                // Set editedText to current content and enter editing mode
+                msg.editedText = currentText;
+                msg.isInEditingMode = true;
+                renderEditor();
+                // Scroll to the textarea
+                setTimeout(() => {
+                    const textarea = document.querySelector(`textarea[data-line-idx="${lineIdx}"]`);
+                    if (textarea) {
+                        textarea.focus();
+                        textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
+            }
+        }
+
+        function applyEdit(lineIdx) {
+            const msgIdx = editorMessages.findIndex(m => m.lineIdx === lineIdx);
+            if (msgIdx >= 0) {
+                const msg = editorMessages[msgIdx];
+                // Keep editedText and exit editing mode
+                msg.isInEditingMode = false;
+                renderEditor();
+            }
+        }
+
+        function cancelEdit(lineIdx) {
+            const msgIdx = editorMessages.findIndex(m => m.lineIdx === lineIdx);
+            if (msgIdx >= 0) {
+                const msg = editorMessages[msgIdx];
+                // Discard editedText and exit editing mode
+                msg.editedText = undefined;
+                msg.isInEditingMode = false;
+                renderEditor();
+            }
+        }
+
+        function rollbackEdit(lineIdx) {
+            const msgIdx = editorMessages.findIndex(m => m.lineIdx === lineIdx);
+            if (msgIdx >= 0) {
+                const msg = editorMessages[msgIdx];
+                // Revert editedText to original text
+                msg.editedText = undefined;
+                renderEditor();
+            }
+        }
+
+        function showPreview() {
+            document.getElementById('placeholderSection').style.display = 'none';
+            document.getElementById('previewSection').style.display = 'block';
+            document.getElementById('editorSection').style.display = 'none';
+            document.querySelector('.main-grid').classList.remove('editor-mode');
+        }
+
+        function showEditor() {
+            document.getElementById('placeholderSection').style.display = 'none';
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('editorSection').style.display = 'block';
+            document.querySelector('.main-grid').classList.add('editor-mode');
+        }
+
         function selectSession(session, element) {
             document.querySelectorAll('.sessions-list li').forEach(li => li.classList.remove('selected'));
             element.classList.add('selected');
@@ -459,6 +1005,29 @@
                 document.getElementById('preview').textContent = data.preview || dict.no_preview;
             })
             .catch(err => console.error(err));
+
+            // Load editor content
+            fetch(`/api/editor-content/${selectedAgent}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: session.path })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    showMessage(`Error loading editor: ${data.error}`, 'error');
+                    return;
+                }
+
+                editorMessages = data.messages.map(m => ({...m, deleted: false, isInEditingMode: false}));
+                renderEditor();
+                // Show preview by default
+                showPreview();
+            })
+            .catch(err => {
+                showMessage(`Error: ${err}`, 'error');
+                console.error(err);
+            });
 
             // Update info
             document.getElementById('sessionInfo').innerHTML = `
@@ -572,6 +1141,127 @@
             showMessage(MSG[LANG].reset_complete, 'success');
         });
 
+        // Apply to Output button
+        document.getElementById('applyToOutputBtn').addEventListener('click', async () => {
+            if (!selectedSession || editorMessages.length === 0) {
+                showMessage(MSG[LANG].select_session, 'error');
+                return;
+            }
+
+            const applyBtn = document.getElementById('applyToOutputBtn');
+            applyBtn.disabled = true;
+
+            document.getElementById('outputPanel').style.display = 'block';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('outputButtons').style.display = 'none';
+
+            try {
+                // Collect edits
+                const edits = editorMessages.map(msg => ({
+                    lineIdx: msg.lineIdx,
+                    text: msg.editedText !== undefined ? msg.editedText : msg.text,
+                    deleted: msg.deleted
+                }));
+
+                const response = await fetch('/api/apply-to-output', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent: selectedAgent,
+                        session_path: selectedSession.path,
+                        format: selectedFormat,
+                        theme: selectedTheme,
+                        range: document.getElementById('rangeInput').value,
+                        alibai_time: document.getElementById('alibaiTimeInput').value,
+                        edits: edits
+                    })
+                });
+
+                const data = await response.json();
+                document.getElementById('loading').style.display = 'none';
+
+                if (!response.ok) {
+                    showMessage(`Error: ${data.error}`, 'error');
+                    return;
+                }
+
+                if (data.success) {
+                    lastConversionResult = data;
+                    document.getElementById('outputButtons').style.display = 'flex';
+                    showMessage(MSG[LANG].conversion_complete, 'success');
+                }
+            } catch (err) {
+                document.getElementById('loading').style.display = 'none';
+                showMessage(`Error: ${err}`, 'error');
+            } finally {
+                applyBtn.disabled = false;
+            }
+        });
+
+        // Apply to Session Log button
+        document.getElementById('applyToSessionBtn').addEventListener('click', async () => {
+            if (!selectedSession || editorMessages.length === 0) {
+                showMessage(MSG[LANG].select_session, 'error');
+                return;
+            }
+
+            // Confirm before overwriting
+            if (!confirm("⚠️ This will permanently modify the session log file. Continue?")) {
+                return;
+            }
+
+            const applyBtn = document.getElementById('applyToSessionBtn');
+            applyBtn.disabled = true;
+
+            try {
+                // Collect edits
+                const edits = editorMessages.map(msg => ({
+                    lineIdx: msg.lineIdx,
+                    text: msg.editedText !== undefined ? msg.editedText : msg.text,
+                    deleted: msg.deleted
+                }));
+
+                const response = await fetch('/api/apply-to-session-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent: selectedAgent,
+                        session_path: selectedSession.path,
+                        alibai_time: document.getElementById('alibaiTimeInput').value,
+                        edits: edits
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showMessage(`Error: ${data.error}`, 'error');
+                    return;
+                }
+
+                if (data.success) {
+                    showMessage(data.message + " - Reloading editor...", 'success');
+                    // Reload editor to show fresh state
+                    setTimeout(() => {
+                        selectSession(selectedSession, document.querySelector('.sessions-list li.selected'));
+                    }, 1000);
+                }
+            } catch (err) {
+                showMessage(`Error: ${err}`, 'error');
+            } finally {
+                applyBtn.disabled = false;
+            }
+        });
+
+        // Toggle buttons
+        document.getElementById('editBtn').addEventListener('click', () => {
+            showEditor();
+        });
+
+        document.getElementById('previewBtn').addEventListener('click', () => {
+            showPreview();
+        });
+
         function showMessage(msg, type) {
             const container = document.getElementById('messageContainer');
             const div = document.createElement('div');
@@ -611,12 +1301,19 @@
                 output_placeholder: '空白でブラウザ表示のみ',
                 browse: '📁 参照',
                 sessions: '📋 セッション',
+                editor_heading: '✏️ エディタ',
                 preview_heading: '👁️ プレビュー',
                 preview_placeholder: 'セッションを選択してください...',
+                edit_btn: '✏️ Edit',
+                preview_btn: '👁️ Preview',
                 info: 'ℹ️ 情報',
                 info_placeholder: 'セッションを選択すると詳細が表示されます...',
                 run: '▶️ 変換実行',
                 reset: '🔄 リセット',
+                apply_to_output: '💾 出力に適用',
+                apply_to_session_log: '💾 セッションログに保存',
+                editor_deleted: '(削除済み)',
+                editor_restored: '復元',
                 output_heading: '📤 出力',
                 processing: '処理中...',
                 view_btn: '🔍 新タブで表示',
@@ -638,12 +1335,19 @@
                 output_placeholder: 'Leave empty for display only',
                 browse: '📁 Browse',
                 sessions: '📋 Sessions',
+                editor_heading: '✏️ Editor',
                 preview_heading: '👁️ Preview',
                 preview_placeholder: 'Select a session to preview...',
+                edit_btn: '✏️ Edit',
+                preview_btn: '👁️ Preview',
                 info: 'ℹ️ Info',
                 info_placeholder: 'Select a session to view details...',
                 run: '▶️ Run Conversion',
                 reset: '🔄 Reset',
+                apply_to_output: '💾 Apply to Output',
+                apply_to_session_log: '💾 Apply to Session Log',
+                editor_deleted: '(deleted)',
+                editor_restored: 'Restore',
                 output_heading: '📤 Output',
                 processing: 'Processing...',
                 view_btn: '🔍 View in New Tab',

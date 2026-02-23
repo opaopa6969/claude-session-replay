@@ -20,6 +20,11 @@ def _extract_tool_results_from_model(entry):
     return entry.get("tool_results", []) or []
 
 
+def _extract_thinking_from_model(entry):
+    """Extract thinking blocks from model entry."""
+    return entry.get("thinking", []) or []
+
+
 def parse_range_spec(spec, total):
     """Parse range spec like '1-50,53-' into zero-based indices."""
     if not spec:
@@ -320,8 +325,9 @@ def convert_to_markdown(model, input_path, ansi_mode="strip", range_spec=None):
         text = _extract_text_from_model(entry)
         tool_uses = _extract_tool_uses_from_model(entry)
         tool_results = _extract_tool_results_from_model(entry)
+        thinking = _extract_thinking_from_model(entry)
 
-        if not text.strip() and not tool_uses and not tool_results:
+        if not text.strip() and not tool_uses and not tool_results and not thinking:
             continue
 
         if role == "user":
@@ -330,6 +336,15 @@ def convert_to_markdown(model, input_path, ansi_mode="strip", range_spec=None):
             lines.append("## Assistant\n")
         else:
             continue
+
+        # Add thinking blocks
+        if thinking and role == "assistant":
+            for thought in thinking:
+                if thought.strip():
+                    lines.append("> 💭 **思考:**\n")
+                    for thought_line in thought.strip().split("\n"):
+                        lines.append(f"> {thought_line}\n")
+                    lines.append("\n")
 
         text = strip_ansi(text)
         if text.strip():
@@ -568,6 +583,27 @@ HTML_TEMPLATE = """\
     padding-top: 16px;
     border-top: 1px solid var(--footer-border);
   }
+  details.thinking-block {
+    background: rgba(232, 192, 122, 0.1);
+    border: 1px solid rgba(232, 192, 122, 0.3);
+    border-radius: 6px;
+    padding: 8px;
+    margin: 6px 0;
+  }
+  details.thinking-block summary {
+    color: var(--tool-name-color);
+    font-style: normal;
+    font-weight: 500;
+  }
+  .thinking-content {
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--result-bg);
+    border-radius: 4px;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
 </style>
 </head>
 <body class="trim-empty">
@@ -660,8 +696,9 @@ def convert_to_html(model, input_path, theme="light", ansi_mode="strip", range_s
         text = _extract_text_from_model(entry)
         tool_uses = _extract_tool_uses_from_model(entry)
         tool_results = _extract_tool_results_from_model(entry)
+        thinking = _extract_thinking_from_model(entry)
 
-        if not text.strip() and not tool_uses and not tool_results:
+        if not text.strip() and not tool_uses and not tool_results and not thinking:
             continue
 
         if role == "user":
@@ -672,6 +709,13 @@ def convert_to_html(model, input_path, theme="light", ansi_mode="strip", range_s
             wrapper_class = "assistant"
         else:
             continue
+
+        # Add thinking blocks for assistant
+        if thinking and role == "assistant":
+            for thought in thinking:
+                if thought.strip():
+                    thinking_content = escape(thought.strip()).replace("\n", "<br>")
+                    parts.append(f'<details class="thinking-block"><summary>💭 思考</summary><div class="thinking-content">{thinking_content}</div></details>')
 
         if text.strip():
             parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
@@ -1036,6 +1080,43 @@ PLAYER_TEMPLATE = """\
     font-weight: bold;
     color: var(--assistant-label);
     font-family: var(--mono);
+  }
+  .thinking-step {
+    background: #1e1e2e !important;
+    border-left-color: #e8c07a !important;
+  }
+  .thinking-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 3px solid #555;
+    border-top-color: #e8c07a;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .thinking-detail {
+    margin: 6px 0;
+    font-size: 0.85em;
+  }
+  .thinking-detail summary {
+    cursor: pointer;
+    color: #e8c07a;
+    font-style: normal;
+    font-weight: 500;
+  }
+  .thinking-body {
+    margin-top: 8px;
+    padding: 8px;
+    background: #161620;
+    border-radius: 4px;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
   }
 </style>
 </head>
@@ -1649,9 +1730,10 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
         text = _extract_text_from_model(entry)
         tool_uses = _extract_tool_uses_from_model(entry)
         tool_results = _extract_tool_results_from_model(entry)
+        thinking = _extract_thinking_from_model(entry)
         timestamp = entry.get("timestamp", "")
 
-        if not text.strip() and not tool_uses and not tool_results:
+        if not text.strip() and not tool_uses and not tool_results and not thinking:
             continue
 
         timestamp_attr = f' data-timestamp="{escape(timestamp)}"' if timestamp else ""
@@ -1686,6 +1768,18 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
             message_blocks.append(f'<div class="message user"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
         elif role == "assistant":
+            # Render thinking blocks as separate message steps
+            if thinking:
+                for thought in thinking:
+                    if thought.strip():
+                        thinking_content = escape(thought.strip()).replace("\n", "<br>")
+                        thinking_html = (f'<div class="message assistant thinking-step"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n'
+                                        f'<div class="thinking-spinner"></div>\n'
+                                        f'<details class="thinking-detail" open><summary>💭 思考中...</summary>'
+                                        f'<div class="thinking-body">{thinking_content}</div></details>\n'
+                                        f'</div>\n</div>')
+                        message_blocks.append(thinking_html)
+
             if text.strip():
                 text_parts = []
                 text_parts.append('<div class="role-label">Assistant</div>')
@@ -2083,6 +2177,26 @@ TERMINAL_TEMPLATE = """\
     color: var(--dim);
     font-size: 12px;
   }
+
+  .t-thinking {
+    background: var(--tool-bg);
+    border: 1px solid var(--tool-border);
+    border-radius: 6px;
+    margin: 6px 0;
+    overflow: hidden;
+  }
+  .t-thinking-label {
+    background: var(--tool-header-bg);
+    padding: 6px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--tool-border);
+    color: #d4c57b;
+    font-weight: bold;
+  }
+  .t-thinking-body {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
 </style>
 </head>
 <body>
@@ -2265,8 +2379,9 @@ def convert_to_terminal(model, input_path, ansi_mode="strip", range_spec=None):
         text = _extract_text_from_model(entry)
         tool_uses = _extract_tool_uses_from_model(entry)
         tool_results = _extract_tool_results_from_model(entry)
+        thinking = _extract_thinking_from_model(entry)
 
-        if not text.strip() and not tool_uses and not tool_results:
+        if not text.strip() and not tool_uses and not tool_results and not thinking:
             continue
 
         if role == "user":
@@ -2281,6 +2396,23 @@ def convert_to_terminal(model, input_path, ansi_mode="strip", range_spec=None):
                 user_html += f'<div class="t-user-text">{safe_text}</div>'
                 message_blocks.append(f'<div class="t-msg t-user">{user_html}</div>')
         elif role == "assistant":
+            # Add thinking blocks for assistant
+            if thinking:
+                for thought in thinking:
+                    if thought.strip():
+                        if ansi_mode == "strip":
+                            safe_thought = escape(strip_ansi(thought.strip()))
+                        elif ansi_mode == "color":
+                            safe_thought = ansi_to_html(thought.strip())
+                        else:
+                            safe_thought = escape(thought.strip())
+                        thinking_html = (
+                            f'<div class="t-msg t-thinking" data-role="thinking">'
+                            f'<div class="t-thinking-label">💭 Thinking</div>'
+                            f'<div class="t-thinking-body"><pre class="t-cmd">{safe_thought}</pre></div>'
+                            f'</div>')
+                        message_blocks.append(thinking_html)
+
             if text.strip():
                 body_html = markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)
                 message_blocks.append(
