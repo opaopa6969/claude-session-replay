@@ -1116,7 +1116,8 @@ PLAYER_TEMPLATE = """\
   .thinking-body {
     margin-top: 8px;
     padding: 8px;
-    background: #161620;
+    background: var(--result-bg);
+    color: var(--result-color);
     border-radius: 4px;
     font-size: 0.9em;
     white-space: pre-wrap;
