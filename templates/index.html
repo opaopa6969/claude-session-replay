@@ -512,17 +512,17 @@
                 </div>
 
                 <!-- Editor section -->
-                <div id="editorSection" style="display: none;">
-                    <h2 style="margin-top: 20px;" data-i18n="editor_heading">✏️ Editor</h2>
-                    <div class="editor-container" id="editorContainer" style="max-height: calc(100vh - 250px); overflow-y: auto;">
+                <div id="editorSection" style="display: none; display: flex; flex-direction: column; height: 100%;">
+                    <div style="flex-shrink: 0;">
+                        <h2 style="margin-top: 20px;" data-i18n="editor_heading">✏️ Editor</h2>
+                        <div id="editorButtons" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+                            <button id="previewBtn" style="flex: 1; min-width: 120px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">👁️ Preview</button>
+                            <button id="applyToOutputBtn" style="flex: 1; min-width: 180px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;" data-i18n="apply_to_output">💾 Apply to Output</button>
+                            <button id="applyToSessionBtn" style="flex: 1; min-width: 180px; padding: 10px; background: #8a4aff; border-color: #8a4aff; font-weight: bold;" data-i18n="apply_to_session_log">💾 Apply to Session Log</button>
+                        </div>
+                    </div>
+                    <div class="editor-container" id="editorContainer" style="max-height: calc(100vh - 250px); overflow-y: auto; flex: 1;">
                         <div id="editorMessages"></div>
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-                        <button id="previewBtn" style="flex: 1; min-width: 120px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">👁️ Preview</button>
-                    </div>
-                    <div id="editorButtons" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
-                        <button id="applyToOutputBtn" style="flex: 1; min-width: 180px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;" data-i18n="apply_to_output">💾 Apply to Output</button>
-                        <button id="applyToSessionBtn" style="flex: 1; min-width: 180px; padding: 10px; background: #8a4aff; border-color: #8a4aff; font-weight: bold;" data-i18n="apply_to_session_log">💾 Apply to Session Log</button>
                     </div>
                 </div>
 
