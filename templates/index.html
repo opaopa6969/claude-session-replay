@@ -514,7 +514,7 @@
                 </div>
 
                 <!-- Editor section -->
-                <div id="editorSection" style="display: none; display: flex; flex-direction: column; height: 100%;">
+                <div id="editorSection" style="display: none;">
                     <div style="flex-shrink: 0;">
                         <h2 style="margin-top: 20px;" data-i18n="editor_heading">✏️ Editor</h2>
                         <div id="editorButtons" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
@@ -986,7 +986,10 @@
         function showEditor() {
             document.getElementById('placeholderSection').style.display = 'none';
             document.getElementById('previewSection').style.display = 'none';
-            document.getElementById('editorSection').style.display = 'block';
+            const editorSection = document.getElementById('editorSection');
+            editorSection.style.display = 'flex';
+            editorSection.style.flexDirection = 'column';
+            editorSection.style.height = '100%';
             document.querySelector('.main-grid').classList.add('editor-mode');
         }
 
