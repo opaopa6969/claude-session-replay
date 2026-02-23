@@ -1801,7 +1801,8 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
             if text.strip():
                 parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
             content = "\n".join(parts)
-            message_blocks.append(f'<div class="message user"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
+            time_with_number = f'{time_label} <span style="color: #888; margin-left: 10px;">#{message_number}</span>' if time_label else f'<span style="color: #888;">#{message_number}</span>'
+            message_blocks.append(f'<div class="message user"{timestamp_attr}>\n{time_with_number}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
         elif role == "assistant":
             message_number += 1
@@ -1810,7 +1811,8 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                 for thought in thinking:
                     if thought.strip():
                         thinking_content = escape(thought.strip()).replace("\n", "<br>")
-                        thinking_html = (f'<div class="message assistant thinking-step"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n'
+                        time_with_number = f'{time_label} <span style="color: #888; margin-left: 10px;">#{message_number}</span>' if time_label else f'<span style="color: #888;">#{message_number}</span>'
+                        thinking_html = (f'<div class="message assistant thinking-step"{timestamp_attr}>\n{time_with_number}\n<div class="message-content">\n'
                                         f'<div class="thinking-spinner"></div>\n'
                                         f'<details class="thinking-detail" open><summary>💭 思考中...</summary>'
                                         f'<div class="thinking-body">{thinking_content}</div></details>\n'
@@ -1861,7 +1863,8 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
 
             if assistant_parts:
                 content = "\n".join(assistant_parts)
-                message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
+                time_with_number = f'{time_label} <span style="color: #888; margin-left: 10px;">#{message_number}</span>' if time_label else f'<span style="color: #888;">#{message_number}</span>'
+                message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{time_with_number}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
     theme_css = THEME_LIGHT if theme == "light" else THEME_CONSOLE
     all_messages = "\n".join(message_blocks)
