@@ -1123,6 +1123,35 @@ PLAYER_TEMPLATE = """\
     white-space: pre-wrap;
     word-wrap: break-word;
   }
+  .tools-container {
+    margin-top: 12px;
+    padding-left: 16px;
+    border-left: 2px solid #ff9f4a;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tool-use-item {
+    padding: 8px 12px;
+    background: rgba(255, 159, 74, 0.1);
+    border-radius: 4px;
+    font-size: 0.9em;
+    border-left: 3px solid #ff9f4a;
+  }
+  .tool-result-item {
+    padding: 8px 12px;
+    background: rgba(100, 200, 255, 0.05);
+    border-radius: 4px;
+    font-size: 0.85em;
+    border-left: 3px solid #64c8ff;
+  }
+  .tool-result-item details {
+    cursor: pointer;
+  }
+  .tool-result-item summary {
+    color: #64c8ff;
+    font-weight: 500;
+  }
 </style>
 </head>
 <body>
@@ -1748,27 +1777,6 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
             parts = [f'<div class="role-label">User ({message_number})</div>']
             if text.strip():
                 parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
-            if tool_uses:
-                for tool_use in tool_uses:
-                    formatted = format_tool_use_html(tool_use)
-                    parts.append(f'<div class="tool-section">{formatted}</div>')
-            if tool_results:
-                for result in tool_results:
-                    result_content = result.get("content", "")
-                    result_text = format_tool_result_content(result_content)
-                    if ansi_mode == "strip":
-                        result_text = strip_ansi(result_text)
-                    elif ansi_mode == "color":
-                        result_text = ansi_to_html(result_text)
-                    if result_text.strip():
-                        truncated = result_text[:500]
-                        if ansi_mode == "strip":
-                            truncated = escape(truncated)
-                        elif ansi_mode == "color":
-                            truncated = truncated
-                        if len(result_text) > 500:
-                            truncated += "\n... (truncated)"
-                        parts.append(f"<details open><summary>Tool Result</summary><pre>{truncated}</pre></details>")
             content = "\n".join(parts)
             message_blocks.append(f'<div class="message user"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
@@ -1785,41 +1793,47 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                                         f'</div>\n</div>')
                         message_blocks.append(thinking_html)
 
+            # Build assistant message with tools nested inside
+            assistant_parts = []
+
+            if text.strip() or tool_uses or tool_results:
+                assistant_parts.append('<div class="role-label">Assistant</div>')
+
             if text.strip():
-                text_parts = []
-                text_parts.append('<div class="role-label">Assistant</div>')
-                text_parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
-                content = "\n".join(text_parts)
-                message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
+                assistant_parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
 
-            if tool_uses:
-                for tool_use in tool_uses:
-                    formatted = format_tool_use_html(tool_use)
-                    tool_parts = []
-                    tool_parts.append(f'<div class="tool-section">{formatted}</div>')
-                    content = "\n".join(tool_parts)
-                    message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
+            # Add tool uses with nested results
+            if tool_uses or tool_results:
+                assistant_parts.append('<div class="tools-container">')
 
-            if tool_results:
-                for result in tool_results:
-                    result_content = result.get("content", "")
-                    result_text = format_tool_result_content(result_content)
-                    if ansi_mode == "strip":
-                        result_text = strip_ansi(result_text)
-                    elif ansi_mode == "color":
-                        result_text = ansi_to_html(result_text)
-                    if result_text.strip():
-                        truncated = result_text[:500]
+                if tool_uses:
+                    for tool_use in tool_uses:
+                        formatted = format_tool_use_html(tool_use)
+                        assistant_parts.append(f'<div class="tool-use-item">{formatted}</div>')
+
+                if tool_results:
+                    for result in tool_results:
+                        result_content = result.get("content", "")
+                        result_text = format_tool_result_content(result_content)
                         if ansi_mode == "strip":
-                            truncated = escape(truncated)
+                            result_text = strip_ansi(result_text)
                         elif ansi_mode == "color":
-                            truncated = truncated
-                        if len(result_text) > 500:
-                            truncated += "\n... (truncated)"
-                        tool_parts = []
-                        tool_parts.append(f"<details open><summary>Tool Result</summary><pre>{truncated}</pre></details>")
-                        content = "\n".join(tool_parts)
-                        message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
+                            result_text = ansi_to_html(result_text)
+                        if result_text.strip():
+                            truncated = result_text[:500]
+                            if ansi_mode == "strip":
+                                truncated = escape(truncated)
+                            elif ansi_mode == "color":
+                                truncated = truncated
+                            if len(result_text) > 500:
+                                truncated += "\n... (truncated)"
+                            assistant_parts.append(f'<div class="tool-result-item"><details open><summary>Tool Result</summary><pre>{truncated}</pre></details></div>')
+
+                assistant_parts.append('</div>')
+
+            if assistant_parts:
+                content = "\n".join(assistant_parts)
+                message_blocks.append(f'<div class="message assistant"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
     theme_css = THEME_LIGHT if theme == "light" else THEME_CONSOLE
     all_messages = "\n".join(message_blocks)
