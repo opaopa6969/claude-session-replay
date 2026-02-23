@@ -1756,6 +1756,9 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
             session_start_ts = msg["timestamp"]
             break
 
+    # Pre-process: collect tool_results from User messages to attach to following Assistant messages
+    pending_tool_results = []
+
     for entry in messages:
         role = entry.get("role", "")
         if role == "user":
@@ -1766,6 +1769,11 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
         tool_results = _extract_tool_results_from_model(entry)
         thinking = _extract_thinking_from_model(entry)
         timestamp = entry.get("timestamp", "")
+
+        # For User messages, collect tool_results to show on Agent side
+        if role == "user" and tool_results:
+            pending_tool_results.extend(tool_results)
+            tool_results = []  # Clear from User message
 
         if not text.strip() and not tool_uses and not tool_results and not thinking:
             continue
@@ -1793,17 +1801,21 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                                         f'</div>\n</div>')
                         message_blocks.append(thinking_html)
 
+            # Combine assistant's tool_results with pending_tool_results from User
+            all_tool_results = pending_tool_results + tool_results
+            pending_tool_results = []
+
             # Build assistant message with tools nested inside
             assistant_parts = []
 
-            if text.strip() or tool_uses or tool_results:
+            if text.strip() or tool_uses or all_tool_results:
                 assistant_parts.append('<div class="role-label">Assistant</div>')
 
             if text.strip():
                 assistant_parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
 
             # Add tool uses with nested results
-            if tool_uses or tool_results:
+            if tool_uses or all_tool_results:
                 assistant_parts.append('<div class="tools-container">')
 
                 if tool_uses:
@@ -1811,8 +1823,8 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
                         formatted = format_tool_use_html(tool_use)
                         assistant_parts.append(f'<div class="tool-use-item">{formatted}</div>')
 
-                if tool_results:
-                    for result in tool_results:
+                if all_tool_results:
+                    for result in all_tool_results:
                         result_content = result.get("content", "")
                         result_text = format_tool_result_content(result_content)
                         if ansi_mode == "strip":
