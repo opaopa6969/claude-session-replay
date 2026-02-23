@@ -469,6 +469,7 @@ def apply_to_output():
         alibai_time = data.get("alibai_time")
         edits = data.get("edits", [])
         filters = data.get("filters", {})
+        truncate_length = data.get("truncate_length")
 
         if not all([agent, session_path, format_type]):
             return jsonify({"error": "Missing required parameters"}), 400
@@ -548,6 +549,10 @@ def apply_to_output():
                     if filters:
                         filters_json = json.dumps(filters)
                         render_cmd.extend(["--filters", filters_json])
+
+                    # Add truncate length
+                    if truncate_length is not None:
+                        render_cmd.extend(["--truncate", str(truncate_length)])
 
                     result = subprocess.run(render_cmd, capture_output=True, text=True, timeout=60)
                     if result.returncode != 0:

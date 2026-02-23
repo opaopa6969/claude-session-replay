@@ -525,6 +525,28 @@
                         </label>
                     </div>
                 </div>
+
+                <div class="form-group">
+                    <label style="margin-bottom: 10px; display: block;">📏 Truncate Length:</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="radio" name="truncateOption" id="truncateFull" value="full" style="cursor: pointer;">
+                            <span>全文表示</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="radio" name="truncateOption" id="truncate500" value="500" checked style="cursor: pointer;">
+                            <span>500文字</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="radio" name="truncateOption" id="truncate1000" value="1000" style="cursor: pointer;">
+                            <span>1000文字</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
+                            <input type="radio" name="truncateOption" id="truncate2000" value="2000" style="cursor: pointer;">
+                            <span>2000文字</span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <!-- Center: Sessions & Preview/Editor -->
@@ -1203,6 +1225,10 @@
                     file_history: document.getElementById('filterFileHistory').checked
                 };
 
+                // Get truncate setting
+                const truncateValue = document.querySelector('input[name="truncateOption"]:checked').value;
+                const truncateLength = truncateValue === 'full' ? null : parseInt(truncateValue);
+
                 const response = await fetch('/api/apply-to-output', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1214,7 +1240,8 @@
                         range: document.getElementById('rangeInput').value,
                         alibai_time: document.getElementById('alibaiTimeInput').value,
                         edits: edits,
-                        filters: filters
+                        filters: filters,
+                        truncate_length: truncateLength
                     })
                 });
 
