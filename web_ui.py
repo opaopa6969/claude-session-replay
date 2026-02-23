@@ -520,6 +520,13 @@ def apply_to_output():
 
                 log_cmd = [sys.executable, str(script_dir / log2model), temp_jsonl, "-o", model_path]
                 result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=60)
+
+                # Log stderr for debugging
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr, flush=True)
+                    with open("/tmp/renderer_debug.log", "a") as f:
+                        f.write(f"=== {datetime.now()} ===\n{result.stderr}\n")
+
                 if result.returncode != 0:
                     return jsonify({"error": f"Log conversion failed: {result.stderr}"}), 500
 
@@ -557,6 +564,13 @@ def apply_to_output():
                         render_cmd.extend(["--truncate", str(truncate_length)])
 
                     result = subprocess.run(render_cmd, capture_output=True, text=True, timeout=60)
+
+                    # Log stderr for debugging
+                    if result.stderr:
+                        print(result.stderr, file=sys.stderr, flush=True)
+                        with open("/tmp/renderer_debug.log", "a") as f:
+                            f.write(f"=== {datetime.now()} ===\n{result.stderr}\n")
+
                     if result.returncode != 0:
                         return jsonify({"error": f"Rendering failed: {result.stderr}"}), 500
 
@@ -631,7 +645,7 @@ def _create_backup(file_path):
                 return str(numbered_backup)
             counter += 1
     except Exception as e:
-        print(f"Warning: Failed to create backup: {e}", file=sys.stderr)
+        print(f"Warning: Failed to create backup: {e}", file=sys.stderr, flush=True)
         return None
 
 
@@ -772,6 +786,13 @@ def convert():
 
             log_cmd = [sys.executable, str(script_dir / log2model), session_path, "-o", model_path]
             result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=60)
+
+            # Log stderr for debugging
+            if result.stderr:
+                print(result.stderr, file=sys.stderr, flush=True)
+                with open("/tmp/renderer_debug.log", "a") as f:
+                    f.write(f"=== {datetime.now()} ===\n{result.stderr}\n")
+
             if result.returncode != 0:
                 return jsonify({"error": f"Log conversion failed: {result.stderr}"}), 500
 
@@ -799,6 +820,13 @@ def convert():
 
                 # Run renderer
                 result = subprocess.run(render_cmd, capture_output=True, text=True, timeout=60)
+
+                # Log stderr for debugging
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr, flush=True)
+                    with open("/tmp/renderer_debug.log", "a") as f:
+                        f.write(f"=== {datetime.now()} ===\n{result.stderr}\n")
+
                 if result.returncode != 0:
                     return jsonify({"error": f"Rendering failed: {result.stderr}"}), 500
 

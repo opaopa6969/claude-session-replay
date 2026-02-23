@@ -6,6 +6,7 @@ import html
 import json
 import os
 import re
+import sys
 
 
 def _extract_text_from_model(entry):
@@ -96,10 +97,14 @@ def format_tool_use(tool_use):
 
 def _truncate_text(text, truncate_length):
     """Truncate text to specified length, returning (text, was_truncated)."""
+    print(f"DEBUG: _truncate_text called with truncate_length={truncate_length}, text_len={len(text)}", file=sys.stderr, flush=True)
     if truncate_length is None or truncate_length == 0:
+        print(f"DEBUG: No truncation (truncate_length={truncate_length})", file=sys.stderr, flush=True)
         return text, False
     if len(text) > truncate_length:
+        print(f"DEBUG: Truncating {len(text)} -> {truncate_length}", file=sys.stderr, flush=True)
         return text[:truncate_length], True
+    print(f"DEBUG: No truncation needed ({len(text)} <= {truncate_length})", file=sys.stderr, flush=True)
     return text, False
 
 
