@@ -1107,6 +1107,10 @@
             document.getElementById('outputButtons').style.display = 'none';
 
             try {
+                // Get truncate setting
+                const truncateValue = document.querySelector('input[name="truncateOption"]:checked').value;
+                const truncateLength = truncateValue === 'full' ? null : parseInt(truncateValue);
+
                 const response = await fetch('/api/convert', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1117,7 +1121,8 @@
                         theme: selectedTheme,
                         range: document.getElementById('rangeInput').value,
                         output: document.getElementById('outputInput').value,
-                        alibai_time: document.getElementById('alibaiTimeInput').value
+                        alibai_time: document.getElementById('alibaiTimeInput').value,
+                        truncate_length: truncateLength
                     })
                 });
 

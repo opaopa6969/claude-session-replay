@@ -471,6 +471,10 @@ def apply_to_output():
         filters = data.get("filters", {})
         truncate_length = data.get("truncate_length")
 
+        # Debug: log the received truncate_length
+        with open("/tmp/renderer_debug.log", "a") as f:
+            f.write(f"=== apply_to_output received truncate_length={truncate_length} ===\n")
+
         if not all([agent, session_path, format_type]):
             return jsonify({"error": "Missing required parameters"}), 400
 
@@ -767,6 +771,7 @@ def convert():
         range_filter = data.get("range")
         output_path = data.get("output")
         alibai_time = data.get("alibai_time")
+        truncate_length = data.get("truncate_length")
 
         if not all([agent, session_path, format_type]):
             return jsonify({"error": "Missing required parameters"}), 400
@@ -817,6 +822,12 @@ def convert():
 
                 if range_filter:
                     render_cmd.extend(["-r", range_filter])
+
+                # Add truncate length (0 = no truncate)
+                if truncate_length is None:
+                    render_cmd.extend(["--truncate", "0"])
+                else:
+                    render_cmd.extend(["--truncate", str(truncate_length)])
 
                 # Run renderer
                 result = subprocess.run(render_cmd, capture_output=True, text=True, timeout=60)
