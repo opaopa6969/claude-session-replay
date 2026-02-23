@@ -1804,6 +1804,7 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
             message_blocks.append(f'<div class="message user"{timestamp_attr}>\n{time_label}\n<div class="message-content">\n{content}\n</div>\n</div>')
 
         elif role == "assistant":
+            message_number += 1
             # Render thinking blocks as separate message steps
             if thinking:
                 for thought in thinking:
@@ -1824,7 +1825,7 @@ def convert_to_player(model, input_path, theme="console", ansi_mode="strip", ran
             assistant_parts = []
 
             if text.strip() or tool_uses or all_tool_results:
-                assistant_parts.append('<div class="role-label">Assistant</div>')
+                assistant_parts.append(f'<div class="role-label">Assistant ({message_number})</div>')
 
             if text.strip():
                 assistant_parts.append(f'<div class="message-body">{markdown_to_html_simple(text.strip(), ansi_mode=ansi_mode)}</div>')
