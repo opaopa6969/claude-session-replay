@@ -16,8 +16,7 @@ def _extract_text_from_content(content):
         for block in content:
             if isinstance(block, dict) and "text" in block:
                 texts.append(block.get("text", ""))
-        return "
-".join(texts)
+        return "\n".join(texts)
     return ""
 
 
@@ -165,8 +164,7 @@ def select_session(sessions):
         size_display = _format_size(session["size"])
         total_msgs = preview["user_count"] + preview["assistant_count"]
 
-        first_msg = preview["first_message"].replace("
-", " ")
+        first_msg = preview["first_message"].replace("\n", " ")
         if len(first_msg) > 60:
             first_msg = first_msg[:58] + ".."
 
