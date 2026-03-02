@@ -21,6 +21,7 @@ def _import_module(name, filepath):
 script_dir = Path(__file__).parent
 claude_log2model = _import_module("claude_log2model", str(script_dir / "claude-log2model.py"))
 codex_log2model = _import_module("codex_log2model", str(script_dir / "codex-log2model.py"))
+gemini_log2model = _import_module("gemini_log2model", str(script_dir / "gemini-log2model.py"))
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
@@ -209,6 +210,36 @@ def _extract_all_messages_for_editor(jsonl_path, agent):
                                 "hasTools": has_tools,
                                 "isReadOnly": False
                             })
+
+                elif agent == "gemini":
+                    # Gemini is single JSON, not JSONL
+                    with open(jsonl_path, "r", encoding="utf-8") as gf:
+                        gemini_data = json.load(gf)
+                        for idx, msg in enumerate(gemini_data.get("messages", [])):
+                            m_type = msg.get("type", "")
+                            if m_type == "user":
+                                role = "user"
+                            elif m_type == "gemini":
+                                role = "assistant"
+                            else:
+                                continue
+
+                            text = gemini_log2model._extract_text_from_content(msg.get("content", ""))
+                            thinking = [t.get("description", "") for t in msg.get("thoughts", [])]
+
+                            messages.append({
+                                "idx": len(messages) + 1,
+                                "lineIdx": idx,  # For gemini, this is the index in messages list
+                                "blockType": role,
+                                "role": role,
+                                "text": text or "",
+                                "thinking": thinking,
+                                "tool_uses": [],
+                                "tool_results": [],
+                                "hasTools": False,
+                                "isReadOnly": False
+                            })
+                    break  # Stop the outer loop
     except (OSError, UnicodeDecodeError):
         pass
 
@@ -324,6 +355,8 @@ def get_sessions(agent):
             sessions = claude_log2model.discover_sessions()
         elif agent == "codex":
             sessions = codex_log2model.discover_sessions()
+        elif agent == "gemini":
+            sessions = gemini_log2model.discover_sessions()
         else:
             return jsonify({"error": "Invalid agent"}), 400
 
@@ -331,9 +364,11 @@ def get_sessions(agent):
         for session in sessions:
             if agent == "claude":
                 preview = claude_log2model._extract_preview(session["path"])
-            else:
+            elif agent == "codex":
                 use_event_msgs = codex_log2model._codex_has_event_messages(session["path"])
                 preview = codex_log2model._extract_preview(session["path"], use_event_msgs)
+            elif agent == "gemini":
+                preview = gemini_log2model._extract_preview(session["path"])
 
             total = preview.get("user_count", 0) + preview.get("assistant_count", 0)
             if total > 0:
@@ -519,6 +554,8 @@ def apply_to_output():
                     log2model = "claude-log2model.py"
                 elif agent == "codex":
                     log2model = "codex-log2model.py"
+                elif agent == "gemini":
+                    log2model = "gemini-log2model.py"
                 else:
                     return jsonify({"error": "Invalid agent"}), 400
 
@@ -786,6 +823,8 @@ def convert():
                 log2model = "claude-log2model.py"
             elif agent == "codex":
                 log2model = "codex-log2model.py"
+            elif agent == "gemini":
+                log2model = "gemini-log2model.py"
             else:
                 return jsonify({"error": "Invalid agent"}), 400
 
