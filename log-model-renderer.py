@@ -1196,6 +1196,16 @@ PLAYER_TEMPLATE = """\
     </div>
   </div>
 
+  <!-- Search Bar -->
+  <div class="search-bar" id="searchBar" style="display:none; padding:4px 8px; gap:6px; align-items:center; background:var(--body-bg); border-bottom:1px solid #555;">
+    <span style="color:#888;">🔍</span>
+    <input id="searchInput" type="text" placeholder="Search..." style="flex:1; padding:4px 8px; background:#1a1a1a; border:1px solid #555; border-radius:4px; color:#e0e0e0; font-size:13px; font-family:var(--mono);" />
+    <span id="searchCount" style="color:#888; font-size:12px; white-space:nowrap;">0/0</span>
+    <button id="searchPrev" style="padding:2px 8px; font-size:12px;">▲</button>
+    <button id="searchNext" style="padding:2px 8px; font-size:12px;">▼</button>
+    <button id="searchClose" style="padding:2px 8px; font-size:12px;">✕</button>
+  </div>
+
   <!-- Fixed Progress Bar Section -->
   <div class="progress-section">
     <div class="progress" id="progress"><span id="progressBar"></span></div>
@@ -1663,6 +1673,8 @@ PLAYER_TEMPLATE = """\
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
     switch(e.key) {
+      case '/': e.preventDefault(); openSearch(); return;
+      case 'Escape': closeSearch(); return;
       case 'j': step(1); break;  // Next message
       case 'k': step(-1); break; // Previous message
       case ' ': e.preventDefault(); playing ? stop() : play(); break; // Play/pause
@@ -1709,6 +1721,120 @@ PLAYER_TEMPLATE = """\
       const startStr = formatTime(sessionStart);
       const endStr = formatTime(sessionEnd);
       h1.textContent = `Session Player [${startStr} - ${endStr}]`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // In-player search
+  // ---------------------------------------------------------------
+  let searchHits = [];
+  let searchIdx = -1;
+
+  const searchBar = document.getElementById('searchBar');
+  const searchInput = document.getElementById('searchInput');
+  const searchCount = document.getElementById('searchCount');
+
+  function openSearch() {
+    searchBar.style.display = 'flex';
+    searchInput.focus();
+    searchInput.select();
+  }
+  function closeSearch() {
+    searchBar.style.display = 'none';
+    clearSearchHits();
+    searchInput.value = '';
+    searchCount.textContent = '0/0';
+  }
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) navigateSearch(-1);
+      else if (searchHits.length > 0) navigateSearch(1);
+      else doSearch();
+    }
+    if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+  });
+  document.getElementById('searchPrev').addEventListener('click', () => navigateSearch(-1));
+  document.getElementById('searchNext').addEventListener('click', () => navigateSearch(1));
+  document.getElementById('searchClose').addEventListener('click', closeSearch);
+
+  function clearSearchHits() {
+    document.querySelectorAll('mark.search-hit').forEach(mark => {
+      const parent = mark.parentNode;
+      parent.replaceChild(document.createTextNode(mark.textContent), mark);
+      parent.normalize();
+    });
+    searchHits = [];
+    searchIdx = -1;
+  }
+
+  function doSearch() {
+    const query = searchInput.value.trim();
+    clearSearchHits();
+    if (!query) { searchCount.textContent = '0/0'; return; }
+
+    // Show all messages so we can search everything
+    messages.forEach(m => { m.style.display = ''; });
+
+    const walker = document.createTreeWalker(
+      document.querySelector('.chat-container'),
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+
+    const queryLower = query.toLowerCase();
+    const nodesToProcess = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.nodeValue && node.nodeValue.toLowerCase().includes(queryLower)) {
+        nodesToProcess.push(node);
+      }
+    }
+
+    nodesToProcess.forEach(node => {
+      const text = node.nodeValue;
+      const lowerText = text.toLowerCase();
+      let lastIdx = 0;
+      const frag = document.createDocumentFragment();
+      let pos = lowerText.indexOf(queryLower);
+      while (pos !== -1) {
+        if (pos > lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx, pos)));
+        const mark = document.createElement('mark');
+        mark.className = 'search-hit';
+        mark.style.background = '#ffd54f';
+        mark.style.color = '#000';
+        mark.style.borderRadius = '2px';
+        mark.textContent = text.slice(pos, pos + query.length);
+        frag.appendChild(mark);
+        lastIdx = pos + query.length;
+        pos = lowerText.indexOf(queryLower, lastIdx);
+      }
+      if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+      node.parentNode.replaceChild(frag, node);
+    });
+
+    searchHits = Array.from(document.querySelectorAll('mark.search-hit'));
+    searchIdx = searchHits.length > 0 ? 0 : -1;
+    searchCount.textContent = searchHits.length > 0 ? `1/${searchHits.length}` : '0/0';
+    if (searchHits.length > 0) highlightCurrent();
+  }
+
+  function navigateSearch(dir) {
+    if (searchHits.length === 0) { doSearch(); return; }
+    searchIdx = (searchIdx + dir + searchHits.length) % searchHits.length;
+    searchCount.textContent = `${searchIdx + 1}/${searchHits.length}`;
+    highlightCurrent();
+  }
+
+  function highlightCurrent() {
+    searchHits.forEach(h => { h.style.background = '#ffd54f'; h.style.outline = ''; });
+    if (searchIdx >= 0 && searchIdx < searchHits.length) {
+      const hit = searchHits[searchIdx];
+      hit.style.background = '#ff9800';
+      hit.style.outline = '2px solid #ff9800';
+      hit.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 
@@ -2258,6 +2384,15 @@ TERMINAL_TEMPLATE = """\
 <div class="t-container">
 {{MESSAGES}}
 </div>
+<!-- Search Bar -->
+<div id="t-searchBar" style="display:none; padding:4px 8px; gap:6px; align-items:center; background:#1a1a1a; border-top:1px solid #333; position:fixed; bottom:80px; left:0; right:0; z-index:100;">
+  <span style="color:#888;">🔍</span>
+  <input id="t-searchInput" type="text" placeholder="Search..." style="flex:1; padding:4px 8px; background:#111; border:1px solid #444; border-radius:4px; color:#e0e0e0; font-size:13px; font-family:monospace;" />
+  <span id="t-searchCount" style="color:#888; font-size:12px; white-space:nowrap;">0/0</span>
+  <button id="t-searchPrev" style="padding:2px 8px; font-size:12px;">▲</button>
+  <button id="t-searchNext" style="padding:2px 8px; font-size:12px;">▼</button>
+  <button id="t-searchClose" style="padding:2px 8px; font-size:12px;">✕</button>
+</div>
 <div class="controls">
   <div class="progress-bar-container" id="t-progress-container"><div class="progress-bar" id="t-progress"></div></div>
   <div class="controls-row">
@@ -2409,6 +2544,126 @@ TERMINAL_TEMPLATE = """\
   btnTrim.classList.toggle('active', trimEmpty);
   document.body.classList.toggle('trim-empty', trimEmpty);
   update();
+
+  // ---------------------------------------------------------------
+  // In-terminal search
+  // ---------------------------------------------------------------
+  let tSearchHits = [];
+  let tSearchIdx = -1;
+
+  const tSearchBar = document.getElementById('t-searchBar');
+  const tSearchInput = document.getElementById('t-searchInput');
+  const tSearchCount = document.getElementById('t-searchCount');
+
+  function tOpenSearch() {
+    tSearchBar.style.display = 'flex';
+    tSearchInput.focus();
+    tSearchInput.select();
+  }
+  function tCloseSearch() {
+    tSearchBar.style.display = 'none';
+    tClearHits();
+    tSearchInput.value = '';
+    tSearchCount.textContent = '0/0';
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === '/') { e.preventDefault(); tOpenSearch(); }
+    if (e.key === 'Escape') tCloseSearch();
+    if (e.key === ' ') { e.preventDefault(); playing ? stopPlay() : startPlay(); }
+    if (e.key === 'ArrowRight') stepOne(1);
+    if (e.key === 'ArrowLeft') stepOne(-1);
+    if (e.key === 'Home') { idx = -1; update(); }
+    if (e.key === 'End') { idx = msgs.length - 1; update(); }
+  });
+
+  tSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) tNavigate(-1);
+      else if (tSearchHits.length > 0) tNavigate(1);
+      else tDoSearch();
+    }
+    if (e.key === 'Escape') { e.preventDefault(); tCloseSearch(); }
+  });
+  document.getElementById('t-searchPrev').addEventListener('click', () => tNavigate(-1));
+  document.getElementById('t-searchNext').addEventListener('click', () => tNavigate(1));
+  document.getElementById('t-searchClose').addEventListener('click', tCloseSearch);
+
+  function tClearHits() {
+    document.querySelectorAll('mark.t-search-hit').forEach(mark => {
+      const parent = mark.parentNode;
+      parent.replaceChild(document.createTextNode(mark.textContent), mark);
+      parent.normalize();
+    });
+    tSearchHits = [];
+    tSearchIdx = -1;
+  }
+
+  function tDoSearch() {
+    const query = tSearchInput.value.trim();
+    tClearHits();
+    if (!query) { tSearchCount.textContent = '0/0'; return; }
+
+    msgs.forEach(m => { m.style.display = ''; });
+
+    const walker = document.createTreeWalker(
+      document.querySelector('.t-container'),
+      NodeFilter.SHOW_TEXT, null, false
+    );
+    const queryLower = query.toLowerCase();
+    const nodesToProcess = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.nodeValue && node.nodeValue.toLowerCase().includes(queryLower)) {
+        nodesToProcess.push(node);
+      }
+    }
+    nodesToProcess.forEach(node => {
+      const text = node.nodeValue;
+      const lowerText = text.toLowerCase();
+      let lastI = 0;
+      const frag = document.createDocumentFragment();
+      let pos = lowerText.indexOf(queryLower);
+      while (pos !== -1) {
+        if (pos > lastI) frag.appendChild(document.createTextNode(text.slice(lastI, pos)));
+        const mark = document.createElement('mark');
+        mark.className = 't-search-hit';
+        mark.style.background = '#ffd54f';
+        mark.style.color = '#000';
+        mark.style.borderRadius = '2px';
+        mark.textContent = text.slice(pos, pos + query.length);
+        frag.appendChild(mark);
+        lastI = pos + query.length;
+        pos = lowerText.indexOf(queryLower, lastI);
+      }
+      if (lastI < text.length) frag.appendChild(document.createTextNode(text.slice(lastI)));
+      node.parentNode.replaceChild(frag, node);
+    });
+
+    tSearchHits = Array.from(document.querySelectorAll('mark.t-search-hit'));
+    tSearchIdx = tSearchHits.length > 0 ? 0 : -1;
+    tSearchCount.textContent = tSearchHits.length > 0 ? `1/${tSearchHits.length}` : '0/0';
+    if (tSearchHits.length > 0) tHighlight();
+  }
+
+  function tNavigate(dir) {
+    if (tSearchHits.length === 0) { tDoSearch(); return; }
+    tSearchIdx = (tSearchIdx + dir + tSearchHits.length) % tSearchHits.length;
+    tSearchCount.textContent = `${tSearchIdx + 1}/${tSearchHits.length}`;
+    tHighlight();
+  }
+
+  function tHighlight() {
+    tSearchHits.forEach(h => { h.style.background = '#ffd54f'; h.style.outline = ''; });
+    if (tSearchIdx >= 0 && tSearchIdx < tSearchHits.length) {
+      const hit = tSearchHits[tSearchIdx];
+      hit.style.background = '#ff9800';
+      hit.style.outline = '2px solid #ff9800';
+      hit.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
 })();
 </script>
 </body>

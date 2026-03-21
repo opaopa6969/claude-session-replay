@@ -120,6 +120,92 @@
             background: #222;
         }
 
+        .search-bar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .search-bar input[type="text"] {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: 12px;
+        }
+        .search-bar button {
+            padding: 6px 10px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .search-bar .search-stats {
+            font-size: 11px;
+            color: #888;
+            white-space: nowrap;
+        }
+        .search-highlight {
+            background: #ffd54f;
+            color: #000;
+            border-radius: 2px;
+            padding: 0 1px;
+        }
+        .search-result-item {
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .search-result-item:hover {
+            background: #333;
+            border-color: #555;
+        }
+        .search-result-item .match-field {
+            display: inline-block;
+            font-size: 10px;
+            background: #555;
+            color: #ddd;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-right: 4px;
+        }
+        .search-result-item .match-excerpt {
+            color: #ccc;
+            margin-top: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .search-cross-result {
+            margin-bottom: 12px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .search-cross-result-header {
+            padding: 8px 10px;
+            background: #333;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-cross-result-header:hover {
+            background: #3a3a3a;
+        }
+        .search-cross-result-header .match-badge {
+            background: #4a9eff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+        }
+        .search-cross-result-body {
+            padding: 6px 10px;
+        }
+
         .sessions-list {
             list-style: none;
             max-height: 500px;
@@ -553,11 +639,26 @@
             <!-- Center: Sessions & Preview/Editor -->
             <div class="panel">
                 <h2 data-i18n="sessions">📋 Sessions</h2>
+                <!-- Cross-session search -->
+                <div class="search-bar">
+                    <input type="text" id="crossSearchInput" data-i18n-placeholder="cross_search_placeholder" placeholder="Search across all sessions..." />
+                    <button id="crossSearchBtn" onclick="searchAcrossSessions()">🔍</button>
+                    <span class="search-stats" id="crossSearchStats"></span>
+                </div>
+                <div id="crossSearchResults" style="display: none; max-height: 500px; overflow-y: auto;"></div>
                 <ul class="sessions-list" id="sessionsList"></ul>
 
                 <!-- Preview section -->
                 <div id="previewSection" style="display: none;">
                     <h2 style="margin-top: 20px;" data-i18n="preview_heading">👁️ Preview</h2>
+                    <!-- Within-session search -->
+                    <div class="search-bar" style="margin-bottom: 8px;">
+                        <input type="text" id="withinSearchInput" data-i18n-placeholder="within_search_placeholder" placeholder="Search within session..." />
+                        <button id="withinSearchBtn" onclick="searchWithinSession()">🔍</button>
+                        <button id="withinSearchPrev" onclick="navigateWithinMatch(-1)" style="display:none;">▲</button>
+                        <button id="withinSearchNext" onclick="navigateWithinMatch(1)" style="display:none;">▼</button>
+                        <span class="search-stats" id="withinSearchStats"></span>
+                    </div>
                     <div class="preview" id="preview" style="display: block;">Select a session...</div>
                     <button id="editBtn" style="width: 100%; margin-top: 15px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">✏️ Edit</button>
                 </div>
@@ -1391,7 +1492,14 @@
                 output_heading: '📤 出力',
                 processing: '処理中...',
                 view_btn: '🔍 新タブで表示',
-                download_btn: '💾 ダウンロード'
+                download_btn: '💾 ダウンロード',
+                cross_search_placeholder: '全セッションを検索...',
+                within_search_placeholder: 'セッション内を検索...',
+                search_searching: '検索中...',
+                search_no_results: '該当なし',
+                search_stats: '{matched}件のセッション / {total}件中 ({ms}ms)',
+                search_matches: '{count}件マッチ',
+                search_within_stats: '{count}件マッチ'
             },
             en: {
                 title: '🎬 Claude Session Replay - Web UI',
@@ -1425,7 +1533,14 @@
                 output_heading: '📤 Output',
                 processing: 'Processing...',
                 view_btn: '🔍 View in New Tab',
-                download_btn: '💾 Download'
+                download_btn: '💾 Download',
+                cross_search_placeholder: 'Search across all sessions...',
+                within_search_placeholder: 'Search within session...',
+                search_searching: 'Searching...',
+                search_no_results: 'No results',
+                search_stats: '{matched} sessions / {total} scanned ({ms}ms)',
+                search_matches: '{count} matches',
+                search_within_stats: '{count} matches'
             }
         };
 
@@ -1460,8 +1575,243 @@
             });
         }
 
+        // ---------------------------------------------------------------
+        // Search: cross-session
+        // ---------------------------------------------------------------
+        let crossSearchResults = [];
+
+        document.getElementById('crossSearchInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') searchAcrossSessions();
+        });
+
+        function searchAcrossSessions() {
+            const query = document.getElementById('crossSearchInput').value.trim();
+            const statsEl = document.getElementById('crossSearchStats');
+            const resultsEl = document.getElementById('crossSearchResults');
+            const listEl = document.getElementById('sessionsList');
+
+            if (!query) {
+                resultsEl.style.display = 'none';
+                listEl.style.display = '';
+                statsEl.textContent = '';
+                return;
+            }
+
+            const dict = I18N[LANG] || I18N.en;
+            statsEl.textContent = dict.search_searching;
+
+            fetch('/api/search/cross-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agents: [selectedAgent],
+                    query: query,
+                    options: { max_sessions: 100, max_matches_per_session: 5 }
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                crossSearchResults = data.results || [];
+                const stats = data.stats || {};
+                statsEl.textContent = dict.search_stats
+                    .replace('{matched}', stats.sessions_matched || 0)
+                    .replace('{total}', stats.sessions_scanned || 0)
+                    .replace('{ms}', stats.elapsed_ms || 0);
+
+                if (crossSearchResults.length === 0) {
+                    resultsEl.innerHTML = `<div style="padding:10px;color:#888;">${dict.search_no_results}</div>`;
+                } else {
+                    resultsEl.innerHTML = crossSearchResults.map((r, ri) => {
+                        const s = r.session;
+                        const dt = s.mtime ? new Date(s.mtime * 1000).toLocaleString() : '';
+                        const matchesHtml = r.matches.map(m => {
+                            const esc = escapeHtml(m.excerpt);
+                            return `<div class="search-result-item">
+                                <span class="match-field">${m.field}</span>
+                                #${m.idx} (${m.role})
+                                <div class="match-excerpt">${highlightExcerpt(esc, m.match_offset, m.match_length)}</div>
+                            </div>`;
+                        }).join('');
+                        return `<div class="search-cross-result">
+                            <div class="search-cross-result-header" onclick="toggleCrossResult(this)">
+                                <div><strong>${escapeHtml(s.project || 'Unknown')}</strong> <span style="color:#888;font-size:11px;">${dt}</span></div>
+                                <span class="match-badge">${dict.search_matches.replace('{count}', r.match_count)}</span>
+                            </div>
+                            <div class="search-cross-result-body" style="display:none;">
+                                ${matchesHtml}
+                            </div>
+                        </div>`;
+                    }).join('');
+                }
+
+                listEl.style.display = 'none';
+                resultsEl.style.display = '';
+            })
+            .catch(err => {
+                statsEl.textContent = 'Error: ' + err;
+            });
+        }
+
+        function toggleCrossResult(headerEl) {
+            const body = headerEl.nextElementSibling;
+            body.style.display = body.style.display === 'none' ? '' : 'none';
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function highlightExcerpt(escapedText, offset, length) {
+            if (typeof offset !== 'number' || typeof length !== 'number') return escapedText;
+            // offset/length are for the raw text; after escaping, positions may shift.
+            // Re-do the highlight on the raw text side for accuracy:
+            // Since we already escaped, we do a simpler approach: just wrap around the offset
+            const before = escapedText.slice(0, offset);
+            const match = escapedText.slice(offset, offset + length);
+            const after = escapedText.slice(offset + length);
+            return before + '<span class="search-highlight">' + match + '</span>' + after;
+        }
+
+        // ---------------------------------------------------------------
+        // Search: within-session
+        // ---------------------------------------------------------------
+        let withinMatches = [];
+        let withinMatchIdx = -1;
+
+        document.getElementById('withinSearchInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                if (e.shiftKey) navigateWithinMatch(-1);
+                else if (withinMatches.length > 0 && withinMatchIdx >= 0) navigateWithinMatch(1);
+                else searchWithinSession();
+            }
+        });
+
+        function searchWithinSession() {
+            const query = document.getElementById('withinSearchInput').value.trim();
+            const statsEl = document.getElementById('withinSearchStats');
+            const prevBtn = document.getElementById('withinSearchPrev');
+            const nextBtn = document.getElementById('withinSearchNext');
+
+            withinMatches = [];
+            withinMatchIdx = -1;
+            clearWithinHighlights();
+
+            if (!query || !selectedSession) {
+                statsEl.textContent = '';
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+                return;
+            }
+
+            const dict = I18N[LANG] || I18N.en;
+            statsEl.textContent = dict.search_searching;
+
+            fetch('/api/search/within-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agent: selectedAgent,
+                    session_path: selectedSession.path,
+                    query: query,
+                    options: { max_matches: 200 }
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                withinMatches = data.matches || [];
+                statsEl.textContent = dict.search_within_stats.replace('{count}', data.total_matches || 0);
+
+                if (withinMatches.length > 0) {
+                    prevBtn.style.display = '';
+                    nextBtn.style.display = '';
+                    highlightWithinMatches(withinMatches);
+                    withinMatchIdx = 0;
+                    scrollToWithinMatch(0);
+                } else {
+                    prevBtn.style.display = 'none';
+                    nextBtn.style.display = 'none';
+                }
+            })
+            .catch(err => {
+                statsEl.textContent = 'Error: ' + err;
+            });
+        }
+
+        function highlightWithinMatches(matches) {
+            // Highlight matching editor cards by message idx
+            const matchIdxSet = new Set(matches.map(m => m.idx));
+            document.querySelectorAll('.editor-message').forEach(card => {
+                const cardIdx = parseInt(card.querySelector('.label')?.textContent?.match(/#(\d+)/)?.[1] || '0');
+                if (matchIdxSet.has(cardIdx)) {
+                    card.style.boxShadow = '0 0 0 2px #ffd54f';
+                    card.dataset.searchMatch = 'true';
+                }
+            });
+            // Also highlight in preview text
+            const previewEl = document.getElementById('preview');
+            if (previewEl && matches.length > 0) {
+                // Add a visual indicator for matched message numbers
+                const matchNums = [...new Set(matches.map(m => `#${m.idx}`))].join(', ');
+                const statsNote = document.createElement('div');
+                statsNote.className = 'search-preview-note';
+                statsNote.id = 'searchPreviewNote';
+                statsNote.style.cssText = 'padding:4px 8px;background:#332b00;color:#ffd54f;font-size:11px;border-radius:4px;margin-bottom:6px;';
+                statsNote.textContent = `Matches in messages: ${matchNums}`;
+                const existing = document.getElementById('searchPreviewNote');
+                if (existing) existing.remove();
+                previewEl.parentNode.insertBefore(statsNote, previewEl);
+            }
+        }
+
+        function clearWithinHighlights() {
+            document.querySelectorAll('.editor-message[data-search-match]').forEach(card => {
+                card.style.boxShadow = '';
+                delete card.dataset.searchMatch;
+            });
+            const note = document.getElementById('searchPreviewNote');
+            if (note) note.remove();
+        }
+
+        function navigateWithinMatch(dir) {
+            if (withinMatches.length === 0) return;
+            withinMatchIdx = (withinMatchIdx + dir + withinMatches.length) % withinMatches.length;
+            scrollToWithinMatch(withinMatchIdx);
+            document.getElementById('withinSearchStats').textContent =
+                `${withinMatchIdx + 1}/${withinMatches.length}`;
+        }
+
+        function scrollToWithinMatch(idx) {
+            const match = withinMatches[idx];
+            if (!match) return;
+            // Find the editor card with this message index
+            const cards = document.querySelectorAll('.editor-message');
+            for (const card of cards) {
+                const cardIdx = parseInt(card.querySelector('.label')?.textContent?.match(/#(\d+)/)?.[1] || '0');
+                if (cardIdx === match.idx) {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    card.style.outline = '2px solid #ffd54f';
+                    setTimeout(() => { card.style.outline = ''; }, 2000);
+                    break;
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Translations & startup
+        // ---------------------------------------------------------------
+
         // Apply translations when DOM is ready
-        document.addEventListener('DOMContentLoaded', applyTranslations);
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTranslations();
+            // Apply placeholder translations
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.dataset.i18nPlaceholder;
+                const dict = I18N[LANG] || I18N.en;
+                if (dict[key]) el.placeholder = dict[key];
+            });
+        });
 
         // Load sessions on startup
         loadSessions();

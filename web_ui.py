@@ -929,6 +929,48 @@ def convert():
         return jsonify({"error": str(e)}), 500
 
 
+import search_utils as _search
+
+
+@app.route('/api/search/within-session', methods=['POST'])
+def api_search_within_session():
+    """Search messages within a single session."""
+    try:
+        data = request.get_json()
+        agent = data.get("agent", "claude")
+        session_path = data.get("session_path", "")
+        query = data.get("query", "")
+        options = data.get("options", {})
+
+        if not query:
+            return jsonify({"matches": [], "total_matches": 0})
+        if not session_path or not os.path.isfile(session_path):
+            return jsonify({"error": "Invalid session path"}), 400
+
+        matches = _search.search_session_messages(session_path, agent, query, options)
+        return jsonify({"matches": matches, "total_matches": len(matches)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/search/cross-session', methods=['POST'])
+def api_search_cross_session():
+    """Search across all sessions of the given agents."""
+    try:
+        data = request.get_json()
+        agents = data.get("agents", ["claude", "codex", "gemini"])
+        query = data.get("query", "")
+        options = data.get("options", {})
+
+        if not query:
+            return jsonify({"results": [], "stats": {}})
+
+        results, stats = _search.search_across_sessions(agents, query, options)
+        return jsonify({"results": results, "stats": stats})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     print("Starting Web UI on http://localhost:5000")
     app.run(debug=True, host='localhost', port=5000)

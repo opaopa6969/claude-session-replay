@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wrapper: agent log -> common model -> renderer."""
+"""Wrapper: agent log -> common model -> renderer.  Also provides --search for cross-session search."""
 
 import argparse
 import os
@@ -16,6 +16,11 @@ def _cli_main(args):
     """CLI mode (with command-line arguments)."""
     if args.agent == "claude":
         log2model = "claude-log2model.py"
+        agent_args = []
+        if args.project:
+            agent_args += ["--project", args.project]
+    elif args.agent == "gemini":
+        log2model = "gemini-log2model.py"
         agent_args = []
         if args.project:
             agent_args += ["--project", args.project]
@@ -60,6 +65,71 @@ def _cli_main(args):
             pass
 
 
+def _search_main(args):
+    """Search mode: search across sessions and display results."""
+    from datetime import datetime
+    import search_utils
+
+    query = args.search
+    agents = [args.agent] if args.agent else ["claude", "codex", "gemini"]
+
+    options = {
+        "case_sensitive": args.case_sensitive,
+        "regex": args.regex,
+        "max_sessions": 100,
+        "max_matches_per_session": 5,
+    }
+    if args.search_scope:
+        options["scope"] = args.search_scope.split(",")
+
+    print(f"\n  Searching for: \"{query}\"  (agents: {', '.join(agents)})\n")
+
+    results, stats = search_utils.search_across_sessions(agents, query, options)
+
+    if not results:
+        print("  No matches found.")
+        print(f"  ({stats.get('sessions_scanned', 0)} sessions scanned in {stats.get('elapsed_ms', 0)}ms)")
+        print()
+        return
+
+    # Print results table
+    print(f"  {'#':>3}  {'Date':16}  {'Agent':8}  {'Project':16}  {'Matches':>7}  First match")
+    print(f"  {'─' * 3}  {'─' * 16}  {'─' * 8}  {'─' * 16}  {'─' * 7}  {'─' * 50}")
+
+    for i, result in enumerate(results):
+        idx = i + 1
+        session = result["session"]
+        agent = result["agent"]
+        match_count = result["match_count"]
+
+        # Format date
+        mtime = session.get("mtime", 0)
+        if mtime:
+            date_display = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+        else:
+            date_display = ""
+
+        project = session.get("project", "")
+        if len(project) > 16:
+            project = project[:14] + ".."
+
+        # First match excerpt with highlighted query
+        first_match = result["matches"][0] if result["matches"] else None
+        if first_match:
+            excerpt = first_match["excerpt"].replace("\n", " ")
+            if len(excerpt) > 50:
+                excerpt = excerpt[:48] + ".."
+        else:
+            excerpt = ""
+
+        print(f"  {idx:>3}  {date_display:16}  {agent:8}  {project:16}  {match_count:>7}  {excerpt}")
+
+    print()
+    print(f"  {stats['sessions_matched']} sessions matched / "
+          f"{stats['sessions_scanned']} scanned in {stats['elapsed_ms']}ms")
+    print()
+
+
 def _tui_main():
     """TUI mode (interactive)."""
     from log_replay_tui import LogReplayApp
@@ -74,8 +144,9 @@ def main():
         return
 
     # Otherwise, use CLI mode
-    parser = argparse.ArgumentParser(description="Replay Claude/Codex logs via common model")
-    parser.add_argument("--agent", choices=["claude", "codex"], required=True, help="log agent type")
+    parser = argparse.ArgumentParser(description="Replay Claude/Codex/Gemini logs via common model")
+    parser.add_argument("--agent", choices=["claude", "codex", "gemini"], default=None,
+                        help="log agent type (required for replay, optional for search)")
     parser.add_argument("input", nargs="?", default=None, help="input JSONL file path (omit to select)")
     parser.add_argument("-o", "--output", help="output file path")
     parser.add_argument("-f", "--format", choices=["md", "html", "player", "terminal"], default="md",
@@ -83,13 +154,26 @@ def main():
     parser.add_argument("-t", "--theme", choices=["light", "console"], default="light",
                         help="HTML theme: light (default) or console (dark)")
     parser.add_argument("--model", help="write model JSON to this path")
-    parser.add_argument("--project", help="(claude) filter sessions by project name")
+    parser.add_argument("--project", help="(claude/gemini) filter sessions by project name")
     parser.add_argument("--filter", help="(codex) filter sessions by path substring")
     parser.add_argument("--log-arg", action="append", default=[], help="extra args for log2model (repeatable)")
     parser.add_argument("--render-arg", action="append", default=[], help="extra args for renderer (repeatable)")
+
+    # Search options
+    parser.add_argument("--search", help="search query (enables search mode)")
+    parser.add_argument("--search-scope", default=None,
+                        help="comma-separated fields to search: text,thinking,tool_use,tool_result (default: all)")
+    parser.add_argument("--case-sensitive", action="store_true", help="case-sensitive search")
+    parser.add_argument("--regex", action="store_true", help="treat search query as regex")
+
     args = parser.parse_args()
 
-    _cli_main(args)
+    if args.search:
+        _search_main(args)
+    else:
+        if not args.agent:
+            parser.error("--agent is required for replay mode (or use --search for search mode)")
+        _cli_main(args)
 
 
 if __name__ == "__main__":
