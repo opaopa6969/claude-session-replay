@@ -2,11 +2,13 @@
 """Session shipper: ship AI coding agent session logs to OpenSearch or file export.
 
 Supports batch mode (ship completed sessions) and watch mode (real-time daemon).
+All enterprise features are gated by config flags — disabled features have zero cost.
 """
 
 import argparse
 import copy
 import getpass
+import gzip
 import hashlib
 import importlib.util
 import json
@@ -67,11 +69,36 @@ def _get_adapter(agent):
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG = {
+    "features": {
+        "shipping_enabled": True,
+        "security_analysis": True,
+        "banned_word_detection": True,
+        "redaction": True,
+        "oidc_auth": False,
+        "dls": False,
+        "multi_tenant": False,
+        "webhooks": False,
+        "metadata_only": False,
+        "auto_policy_sync": False,
+        "compression": False,
+        "encryption_at_rest": False,
+        "dead_letter_queue": True,
+    },
     "endpoint": {
         "type": "file",
         "url": "",
         "index": "agent-sessions",
-        "auth": {"type": "none", "api_key": "", "username": "", "password": ""},
+        "auth": {
+            "type": "none",
+            "api_key": "",
+            "username": "",
+            "password": "",
+            "issuer_url": "",
+            "client_id": "",
+            "client_secret": "",
+            "scopes": ["openid"],
+            "token_cache_path": "~/.claude-replay/oidc-token.json",
+        },
         "timeout_seconds": 30,
         "verify_ssl": True,
     },
@@ -79,7 +106,7 @@ DEFAULT_CONFIG = {
         "directory": "./shipped-sessions/",
         "format": "ndjson",
     },
-    "identity": {"user_id": "", "hostname": "", "organization": ""},
+    "identity": {"user_id": "", "hostname": "", "organization": "", "roles": []},
     "scope": {
         "include_text": True,
         "include_thinking": False,
@@ -92,6 +119,26 @@ DEFAULT_CONFIG = {
         "suspicious_commands": [],
         "banned_words": [],
     },
+    "webhooks": {
+        "url": "",
+        "events": ["security_high", "banned_word"],
+        "format": "generic",
+        "headers": {},
+        "timeout_seconds": 10,
+        "max_retries": 2,
+    },
+    "policy_sync": {
+        "url": "",
+        "interval_seconds": 300,
+        "auth_same_as_endpoint": True,
+    },
+    "encryption": {
+        "key_file": "~/.claude-replay/encryption.key",
+    },
+    "multi_tenant": {
+        "strategy": "index_per_tenant",
+        "index_prefix": "agent-sessions",
+    },
     "watch": {"agents": ["claude", "codex", "gemini"], "polling_interval_seconds": 2},
     "shipping": {
         "batch_size": 50,
@@ -100,8 +147,16 @@ DEFAULT_CONFIG = {
         "retry_backoff_seconds": 2,
         "max_field_size": 10240,
     },
+    "dlq": {
+        "directory": "~/.claude-replay/dlq/",
+    },
     "state_file": "~/.claude-replay/shipper-state.json",
 }
+
+
+def _feat(config, flag):
+    """Check if a feature flag is enabled."""
+    return config.get("features", {}).get(flag, False)
 
 
 def _deep_merge(base, override):
@@ -127,7 +182,7 @@ def load_config(config_path=None):
             log.info("Loaded config from %s", p)
             return _deep_merge(DEFAULT_CONFIG, user_config)
     log.info("No config file found, using defaults")
-    return DEFAULT_CONFIG.copy()
+    return copy.deepcopy(DEFAULT_CONFIG)
 
 
 # ---------------------------------------------------------------------------
@@ -161,10 +216,121 @@ def build_envelope(config, session_path, agent, project=""):
 
 
 # ---------------------------------------------------------------------------
+# OIDC authentication (feature flag: oidc_auth)
+# ---------------------------------------------------------------------------
+
+class OIDCTokenManager:
+    """Manage OIDC tokens via Client Credentials flow. Caches to disk."""
+
+    def __init__(self, auth_config):
+        self.issuer_url = auth_config.get("issuer_url", "").rstrip("/")
+        self.client_id = auth_config.get("client_id", "")
+        self.client_secret = auth_config.get("client_secret", "")
+        self.scopes = auth_config.get("scopes", ["openid"])
+        self.cache_path = os.path.expanduser(auth_config.get("token_cache_path", ""))
+        self._token_data = None
+        self._load_cache()
+
+    def _load_cache(self):
+        if self.cache_path and os.path.isfile(self.cache_path):
+            try:
+                with open(self.cache_path, "r") as f:
+                    self._token_data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                self._token_data = None
+
+    def _save_cache(self):
+        if self.cache_path and self._token_data:
+            os.makedirs(os.path.dirname(self.cache_path) or ".", exist_ok=True)
+            with open(self.cache_path, "w") as f:
+                json.dump(self._token_data, f)
+
+    def _is_expired(self):
+        if not self._token_data:
+            return True
+        expires_at = self._token_data.get("expires_at", 0)
+        return time.time() >= expires_at - 30  # 30s buffer
+
+    def _discover_token_endpoint(self):
+        url = f"{self.issuer_url}/.well-known/openid-configuration"
+        try:
+            req = urllib.request.Request(url)
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read().decode())
+            return data.get("token_endpoint", "")
+        except Exception as e:
+            log.warning("OIDC discovery failed: %s", e)
+            return f"{self.issuer_url}/protocol/openid-connect/token"
+
+    def _fetch_token(self):
+        token_endpoint = self._discover_token_endpoint()
+        params = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "scope": " ".join(self.scopes),
+        }).encode()
+        try:
+            import urllib.parse
+            req = urllib.request.Request(token_endpoint, data=params, method="POST")
+            req.add_header("Content-Type", "application/x-www-form-urlencoded")
+            resp = urllib.request.urlopen(req, timeout=15)
+            data = json.loads(resp.read().decode())
+            data["expires_at"] = time.time() + data.get("expires_in", 300)
+            self._token_data = data
+            self._save_cache()
+            log.info("OIDC token acquired (expires in %ds)", data.get("expires_in", 0))
+            return data
+        except Exception as e:
+            log.error("OIDC token fetch failed: %s", e)
+            return None
+
+    def get_access_token(self):
+        if self._is_expired():
+            self._fetch_token()
+        return self._token_data.get("access_token", "") if self._token_data else ""
+
+    def get_user_id(self):
+        """Extract user_id from token claims (JWT)."""
+        token = self.get_access_token()
+        if not token:
+            return ""
+        try:
+            import base64
+            # Decode JWT payload (2nd segment) without verification
+            parts = token.split(".")
+            if len(parts) < 2:
+                return ""
+            payload = parts[1] + "=" * (4 - len(parts[1]) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+            return claims.get("preferred_username") or claims.get("sub", "")
+        except Exception:
+            return ""
+
+    def get_roles(self):
+        """Extract roles from token claims."""
+        token = self.get_access_token()
+        if not token:
+            return []
+        try:
+            import base64
+            parts = token.split(".")
+            if len(parts) < 2:
+                return []
+            payload = parts[1] + "=" * (4 - len(parts[1]) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+            return claims.get("groups", claims.get("roles", []))
+        except Exception:
+            return []
+
+
+# ---------------------------------------------------------------------------
 # Redaction engine
 # ---------------------------------------------------------------------------
 
 def build_redactor(config):
+    if not _feat(config, "redaction"):
+        return []
     patterns = []
     for p in config.get("redaction", {}).get("patterns", []):
         try:
@@ -209,7 +375,21 @@ def redact_message(message, redactor):
 # Scope filtering
 # ---------------------------------------------------------------------------
 
-def filter_scope(message, scope_config):
+def filter_scope(message, config):
+    scope_config = config.get("scope", {})
+
+    # Metadata-only mode
+    if _feat(config, "metadata_only"):
+        return {
+            "role": message.get("role", ""),
+            "timestamp": message.get("timestamp", ""),
+            "message_index": message.get("message_index", 0),
+            "text_length": len(message.get("text", "")),
+            "thinking_count": len(message.get("thinking", [])),
+            "tool_use_names": [tu.get("name", "") for tu in message.get("tool_uses", [])],
+            "tool_result_count": len(message.get("tool_results", [])),
+        }
+
     result = {
         "role": message.get("role", ""),
         "timestamp": message.get("timestamp", ""),
@@ -244,10 +424,13 @@ def truncate_fields(message, max_size):
 
 
 # ---------------------------------------------------------------------------
-# Security analysis
+# Security analysis (feature flag: security_analysis)
 # ---------------------------------------------------------------------------
 
-def analyze_security(message, security_config):
+def analyze_security(message, config):
+    if not _feat(config, "security_analysis"):
+        return []
+    security_config = config.get("security", {})
     flags = []
     sensitive_paths = security_config.get("sensitive_paths", [])
     suspicious_cmds = security_config.get("suspicious_commands", [])
@@ -256,73 +439,54 @@ def analyze_security(message, security_config):
         name = tu.get("name", "")
         inp = tu.get("input", {}) or {}
 
-        # Sensitive file read
         if name in ("Read", "file_read"):
             fpath = inp.get("file_path", "") or inp.get("path", "")
             for sp in sensitive_paths:
                 if sp in fpath:
-                    flags.append({
-                        "severity": "high",
-                        "category": "sensitive_file_read",
-                        "detail": f"{name} {fpath}",
-                    })
+                    flags.append({"severity": "high", "category": "sensitive_file_read",
+                                  "detail": f"{name} {fpath}"})
                     break
 
-        # Sensitive file write
         if name in ("Write", "file_write"):
             fpath = inp.get("file_path", "") or inp.get("path", "")
             for sp in sensitive_paths:
                 if sp in fpath:
-                    flags.append({
-                        "severity": "high",
-                        "category": "sensitive_file_write",
-                        "detail": f"{name} {fpath}",
-                    })
+                    flags.append({"severity": "high", "category": "sensitive_file_write",
+                                  "detail": f"{name} {fpath}"})
                     break
 
-        # Suspicious commands
         if name in ("Bash", "shell_command"):
             cmd = inp.get("command", "")
             for sc in suspicious_cmds:
                 if sc in cmd:
-                    flags.append({
-                        "severity": "medium",
-                        "category": "suspicious_command",
-                        "detail": f"{sc.strip()} in: {cmd[:200]}",
-                    })
+                    flags.append({"severity": "medium", "category": "suspicious_command",
+                                  "detail": f"{sc.strip()} in: {cmd[:200]}"})
                     break
-            # External URL access
             if re.search(r'https?://', cmd):
                 urls = re.findall(r'https?://[^\s"\']+', cmd)
                 for url in urls[:3]:
-                    flags.append({
-                        "severity": "medium",
-                        "category": "external_access",
-                        "detail": f"URL access: {url[:200]}",
-                    })
+                    flags.append({"severity": "medium", "category": "external_access",
+                                  "detail": f"URL access: {url[:200]}"})
 
-        # Sensitive search
         if name in ("Grep",):
             pattern = inp.get("pattern", "")
             for sp in sensitive_paths:
                 if sp in pattern:
-                    flags.append({
-                        "severity": "low",
-                        "category": "sensitive_search",
-                        "detail": f"Grep for: {pattern[:200]}",
-                    })
+                    flags.append({"severity": "low", "category": "sensitive_search",
+                                  "detail": f"Grep for: {pattern[:200]}"})
                     break
 
     return flags
 
 
-def detect_banned_words(message, banned_words):
+def detect_banned_words(message, config):
+    if not _feat(config, "banned_word_detection"):
+        return []
+    banned_words = config.get("security", {}).get("banned_words", [])
     if not banned_words:
         return []
     hits = []
-    fields_to_check = [
-        ("text", message.get("text", "")),
-    ]
+    fields_to_check = [("text", message.get("text", ""))]
     for t in message.get("thinking", []):
         fields_to_check.append(("thinking", t))
     for tu in message.get("tool_uses", []):
@@ -346,6 +510,161 @@ def detect_banned_words(message, banned_words):
 
 
 # ---------------------------------------------------------------------------
+# Webhooks (feature flag: webhooks)
+# ---------------------------------------------------------------------------
+
+def send_webhook(config, alerts, doc):
+    """Send webhook notification for security alerts or banned word hits."""
+    if not _feat(config, "webhooks"):
+        return
+    wh_config = config.get("webhooks", {})
+    url = wh_config.get("url", "")
+    if not url:
+        return
+
+    events = wh_config.get("events", [])
+    should_fire = False
+    for alert in alerts:
+        sev = alert.get("severity", "")
+        cat = alert.get("category", "")
+        if f"security_{sev}" in events or cat in events:
+            should_fire = True
+            break
+    if not should_fire and "banned_word" in events and doc.get("banned_word_hits"):
+        should_fire = True
+    if not should_fire:
+        return
+
+    fmt = wh_config.get("format", "generic")
+    if fmt == "slack":
+        lines = [f"*User:* {doc.get('user_id', '?')}",
+                 f"*Session:* {doc.get('session_id', '?')} #{doc.get('message_index', '?')}"]
+        for a in alerts:
+            lines.append(f"*[{a['severity'].upper()}]* {a['category']}: {a.get('detail', '')[:100]}")
+        for bw in doc.get("banned_word_hits", []):
+            lines.append(f"*Banned word:* `{bw['word']}` in {bw['field']} (x{bw['count']})")
+        payload = json.dumps({
+            "text": ":warning: Session Shipper Alert",
+            "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}}],
+        })
+    else:
+        payload = json.dumps({
+            "event_type": "session_shipper_alert",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "user_id": doc.get("user_id", ""),
+            "organization": doc.get("organization", ""),
+            "session_id": doc.get("session_id", ""),
+            "message_index": doc.get("message_index", 0),
+            "alerts": alerts,
+            "banned_word_hits": doc.get("banned_word_hits", []),
+        }, ensure_ascii=False)
+
+    headers = {"Content-Type": "application/json"}
+    headers.update(wh_config.get("headers", {}))
+    retries = wh_config.get("max_retries", 2)
+    timeout = wh_config.get("timeout_seconds", 10)
+
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(url, data=payload.encode(), headers=headers, method="POST")
+            urllib.request.urlopen(req, timeout=timeout)
+            log.info("Webhook sent to %s", url)
+            return
+        except Exception as e:
+            log.warning("Webhook attempt %d/%d failed: %s", attempt + 1, retries, e)
+
+
+# ---------------------------------------------------------------------------
+# Policy sync (feature flag: auto_policy_sync)
+# ---------------------------------------------------------------------------
+
+def sync_policy(config):
+    """Fetch policy from central endpoint and merge into config."""
+    if not _feat(config, "auto_policy_sync"):
+        return config
+    ps = config.get("policy_sync", {})
+    url = ps.get("url", "")
+    if not url:
+        return config
+
+    headers = {}
+    if ps.get("auth_same_as_endpoint"):
+        auth = config.get("endpoint", {}).get("auth", {})
+        auth_type = auth.get("type", "none")
+        if auth_type == "api_key":
+            headers["Authorization"] = f"ApiKey {auth['api_key']}"
+        elif auth_type == "basic":
+            import base64
+            creds = base64.b64encode(f"{auth['username']}:{auth['password']}".encode()).decode()
+            headers["Authorization"] = f"Basic {creds}"
+
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=15)
+        policy = json.loads(resp.read().decode())
+        # Merge policy fields into security config
+        if "banned_words" in policy:
+            config["security"]["banned_words"] = policy["banned_words"]
+        if "sensitive_paths" in policy:
+            config["security"]["sensitive_paths"] = policy["sensitive_paths"]
+        if "suspicious_commands" in policy:
+            config["security"]["suspicious_commands"] = policy["suspicious_commands"]
+        if "redaction_patterns" in policy:
+            config["redaction"]["patterns"] = policy["redaction_patterns"]
+        log.info("Policy synced from %s (updated_at: %s)", url, policy.get("updated_at", "?"))
+    except Exception as e:
+        log.warning("Policy sync failed: %s", e)
+
+    return config
+
+
+# ---------------------------------------------------------------------------
+# Dead letter queue (feature flag: dead_letter_queue)
+# ---------------------------------------------------------------------------
+
+class DeadLetterQueue:
+    def __init__(self, config):
+        self.enabled = _feat(config, "dead_letter_queue")
+        self.directory = os.path.expanduser(config.get("dlq", {}).get("directory", "~/.claude-replay/dlq/"))
+        if self.enabled:
+            os.makedirs(self.directory, exist_ok=True)
+
+    def write(self, documents, error_reason):
+        if not self.enabled or not documents:
+            return
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filepath = os.path.join(self.directory, f"dlq-{ts}-{os.getpid()}.ndjson")
+        try:
+            with open(filepath, "a", encoding="utf-8") as f:
+                for doc in documents:
+                    entry = {k: v for k, v in doc.items() if k != "_doc_id"}
+                    entry["_dlq_error"] = str(error_reason)
+                    entry["_dlq_timestamp"] = datetime.now(timezone.utc).isoformat()
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            log.info("DLQ: wrote %d documents to %s", len(documents), filepath)
+        except OSError as e:
+            log.error("DLQ write failed: %s", e)
+
+    def list_files(self):
+        if not os.path.isdir(self.directory):
+            return []
+        return sorted(Path(self.directory).glob("dlq-*.ndjson"))
+
+    def read_all(self):
+        docs = []
+        for f in self.list_files():
+            with open(f, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        try:
+                            docs.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            pass
+        return docs
+
+
+# ---------------------------------------------------------------------------
 # Transport layer
 # ---------------------------------------------------------------------------
 
@@ -357,50 +676,69 @@ class Transport:
 class OpenSearchTransport(Transport):
     def __init__(self, config):
         self.url = config["endpoint"]["url"].rstrip("/")
-        self.index = config["endpoint"].get("index", "agent-sessions")
+        self.base_index = config["endpoint"].get("index", "agent-sessions")
         self.auth = config["endpoint"].get("auth", {})
         self.timeout = config["endpoint"].get("timeout_seconds", 30)
         self.verify_ssl = config["endpoint"].get("verify_ssl", True)
         self.max_retries = config.get("shipping", {}).get("max_retries", 3)
         self.backoff = config.get("shipping", {}).get("retry_backoff_seconds", 2)
+        self.compress = _feat(config, "compression")
+        self.multi_tenant = _feat(config, "multi_tenant")
+        self.mt_config = config.get("multi_tenant", {})
+        self.dlq = DeadLetterQueue(config)
+        self._oidc = None
+        if _feat(config, "oidc_auth"):
+            self._oidc = OIDCTokenManager(self.auth)
+
+    def _resolve_index(self, doc):
+        if self.multi_tenant and self.mt_config.get("strategy") == "index_per_tenant":
+            org = doc.get("organization", "default")
+            prefix = self.mt_config.get("index_prefix", "agent-sessions")
+            return f"{prefix}-{org}" if org else self.base_index
+        return self.base_index
 
     def _build_headers(self):
         headers = {"Content-Type": "application/x-ndjson"}
-        auth_type = self.auth.get("type", "none")
-        if auth_type == "api_key":
-            headers["Authorization"] = f"ApiKey {self.auth['api_key']}"
-        elif auth_type == "basic":
-            import base64
-            creds = base64.b64encode(
-                f"{self.auth['username']}:{self.auth['password']}".encode()
-            ).decode()
-            headers["Authorization"] = f"Basic {creds}"
+        if self._oidc:
+            token = self._oidc.get_access_token()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+        else:
+            auth_type = self.auth.get("type", "none")
+            if auth_type == "api_key":
+                headers["Authorization"] = f"ApiKey {self.auth['api_key']}"
+            elif auth_type == "basic":
+                import base64
+                creds = base64.b64encode(
+                    f"{self.auth['username']}:{self.auth['password']}".encode()
+                ).decode()
+                headers["Authorization"] = f"Basic {creds}"
+        if self.compress:
+            headers["Content-Encoding"] = "gzip"
         return headers
 
     def ship(self, documents):
         if not documents:
             return 0, 0
-        # Build NDJSON bulk body
         lines = []
         for doc in documents:
             doc_id = doc.get("_doc_id", "")
-            action = json.dumps({"index": {"_index": self.index, "_id": doc_id}})
+            index = self._resolve_index(doc)
+            action = json.dumps({"index": {"_index": index, "_id": doc_id}})
             body = json.dumps({k: v for k, v in doc.items() if k != "_doc_id"}, ensure_ascii=False)
             lines.append(action)
             lines.append(body)
-        payload = "\n".join(lines) + "\n"
+        payload_bytes = ("\n".join(lines) + "\n").encode("utf-8")
+
+        if self.compress:
+            payload_bytes = gzip.compress(payload_bytes)
 
         bulk_url = f"{self.url}/_bulk"
         headers = self._build_headers()
 
         for attempt in range(self.max_retries):
             try:
-                req = urllib.request.Request(
-                    bulk_url,
-                    data=payload.encode("utf-8"),
-                    headers=headers,
-                    method="POST",
-                )
+                req = urllib.request.Request(bulk_url, data=payload_bytes, headers=headers, method="POST")
                 if not self.verify_ssl:
                     import ssl
                     ctx = ssl.create_default_context()
@@ -420,30 +758,71 @@ class OpenSearchTransport(Transport):
                 log.warning("Ship attempt %d/%d failed: %s", attempt + 1, self.max_retries, e)
                 if attempt < self.max_retries - 1:
                     time.sleep(self.backoff * (attempt + 1))
+
+        # All retries failed → DLQ
+        self.dlq.write(documents, "All retries exhausted")
         return 0, len(documents)
 
 
 class FileExportTransport(Transport):
     def __init__(self, config):
         self.directory = config.get("file_export", {}).get("directory", "./shipped-sessions/")
-        self.fmt = config.get("file_export", {}).get("format", "ndjson")
+        self.encrypt = _feat(config, "encryption_at_rest")
+        self.key_file = os.path.expanduser(config.get("encryption", {}).get("key_file", ""))
+        self.compress = _feat(config, "compression")
+        self.dlq = DeadLetterQueue(config)
         os.makedirs(self.directory, exist_ok=True)
+
+    def _get_encryption_key(self):
+        if not self.encrypt or not self.key_file:
+            return None
+        try:
+            with open(self.key_file, "rb") as f:
+                return f.read().strip()
+        except OSError:
+            log.warning("Encryption key file not found: %s", self.key_file)
+            return None
 
     def ship(self, documents):
         if not documents:
             return 0, 0
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = f"ship-{ts}-{os.getpid()}.ndjson"
+        ext = ".ndjson"
+        if self.compress:
+            ext += ".gz"
+        if self.encrypt:
+            ext += ".enc"
+        filename = f"ship-{ts}-{os.getpid()}{ext}"
         filepath = os.path.join(self.directory, filename)
         try:
-            with open(filepath, "a", encoding="utf-8") as f:
-                for doc in documents:
-                    clean = {k: v for k, v in doc.items() if k != "_doc_id"}
-                    f.write(json.dumps(clean, ensure_ascii=False) + "\n")
+            raw = ""
+            for doc in documents:
+                clean = {k: v for k, v in doc.items() if k != "_doc_id"}
+                raw += json.dumps(clean, ensure_ascii=False) + "\n"
+            data = raw.encode("utf-8")
+
+            if self.compress:
+                data = gzip.compress(data)
+
+            if self.encrypt:
+                key = self._get_encryption_key()
+                if key:
+                    try:
+                        from cryptography.fernet import Fernet
+                        f = Fernet(key)
+                        data = f.encrypt(data)
+                    except ImportError:
+                        log.warning("cryptography library not installed, skipping encryption")
+                    except Exception as e:
+                        log.warning("Encryption failed: %s", e)
+
+            with open(filepath, "wb") as f:
+                f.write(data)
             log.info("Exported %d documents to %s", len(documents), filepath)
             return len(documents), 0
         except OSError as e:
             log.error("File export failed: %s", e)
+            self.dlq.write(documents, str(e))
             return 0, len(documents)
 
 
@@ -459,7 +838,7 @@ def create_transport(config, dry_run=False):
     if dry_run:
         return DryRunTransport()
     ep_type = config.get("endpoint", {}).get("type", "file")
-    if ep_type == "opensearch" or ep_type == "rest":
+    if ep_type in ("opensearch", "rest"):
         return OpenSearchTransport(config)
     return FileExportTransport(config)
 
@@ -505,7 +884,6 @@ class OffsetTracker:
         }
 
     def get_session_map(self):
-        """Return session_id → file_path mapping."""
         mapping = {}
         for fpath, info in self.state.get("files", {}).items():
             sid = info.get("session_id", "")
@@ -523,30 +901,28 @@ def _doc_id(session_id, message_index):
     return hashlib.sha256(raw.encode()).hexdigest()[:20]
 
 
-def process_message(message, message_index, envelope, config, redactor):
+def process_message(message, message_index, envelope, config, redactor, oidc_mgr=None):
     """Process a single common-model message into a shippable document."""
     msg = dict(message)
     msg["message_index"] = message_index
 
-    # Truncate large fields
     max_size = config.get("shipping", {}).get("max_field_size", 10240)
     msg = truncate_fields(msg, max_size)
-
-    # Scope filter
-    msg = filter_scope(msg, config.get("scope", {}))
-
-    # Redaction
+    msg = filter_scope(msg, config)
     msg = redact_message(msg, redactor)
 
-    # Security analysis (on original tool_uses before scope filter removed them)
-    security_flags = analyze_security(message, config.get("security", {}))
+    security_flags = analyze_security(message, config)
+    banned_hits = detect_banned_words(message, config)
 
-    # Banned word detection
-    banned_hits = detect_banned_words(message, config.get("security", {}).get("banned_words", []))
-
-    # Build final document
     doc = {}
     doc.update(envelope)
+
+    # Override user_id from OIDC token if available
+    if oidc_mgr:
+        oidc_user = oidc_mgr.get_user_id()
+        if oidc_user:
+            doc["user_id"] = oidc_user
+
     doc.update(msg)
     doc["timestamp_original"] = message.get("timestamp", "")
     doc["timestamp_shipped"] = datetime.now(timezone.utc).isoformat()
@@ -554,18 +930,25 @@ def process_message(message, message_index, envelope, config, redactor):
     doc["banned_word_hits"] = banned_hits
     doc["_doc_id"] = _doc_id(envelope["session_id"], message_index)
 
-    return doc
+    # DLS fields
+    if _feat(config, "dls"):
+        doc["_dls_user"] = doc.get("user_id", "")
+        doc["_dls_org"] = doc.get("organization", "")
+        if oidc_mgr:
+            doc["_dls_roles"] = oidc_mgr.get_roles()
+        else:
+            doc["_dls_roles"] = config.get("identity", {}).get("roles", [])
+
+    return doc, security_flags, banned_hits
 
 
 # ---------------------------------------------------------------------------
 # Batch shipper
 # ---------------------------------------------------------------------------
 
-def ship_batch_file(session_path, agent, config, transport, offset_tracker, redactor):
-    """Ship one session file in batch mode."""
+def ship_batch_file(session_path, agent, config, transport, offset_tracker, redactor, oidc_mgr=None):
     adapter = _get_adapter(agent)
 
-    # Build common model
     if agent == "gemini":
         with open(session_path, "r", encoding="utf-8") as f:
             session_data = json.load(f)
@@ -583,9 +966,7 @@ def ship_batch_file(session_path, agent, config, transport, offset_tracker, reda
 
     envelope = build_envelope(config, session_path, agent, project)
 
-    # Check offset (skip already shipped messages)
     _, shipped_count = offset_tracker.get_offset(session_path)
-
     all_messages = model.get("messages", [])
     new_messages = all_messages[shipped_count:]
 
@@ -593,15 +974,18 @@ def ship_batch_file(session_path, agent, config, transport, offset_tracker, reda
         log.info("  %s: no new messages (already shipped %d)", Path(session_path).name, shipped_count)
         return 0
 
-    # Process messages into documents
     batch = []
     batch_size = config.get("shipping", {}).get("batch_size", 50)
     total_shipped = 0
 
     for i, msg in enumerate(new_messages):
         msg_idx = shipped_count + i + 1
-        doc = process_message(msg, msg_idx, envelope, config, redactor)
+        doc, sec_flags, banned = process_message(msg, msg_idx, envelope, config, redactor, oidc_mgr)
         batch.append(doc)
+
+        # Webhook on alerts
+        if sec_flags or banned:
+            send_webhook(config, sec_flags, doc)
 
         if len(batch) >= batch_size:
             ok, err = transport.ship(batch)
@@ -612,7 +996,6 @@ def ship_batch_file(session_path, agent, config, transport, offset_tracker, reda
         ok, err = transport.ship(batch)
         total_shipped += ok
 
-    # Update offset
     new_total = shipped_count + len(new_messages)
     offset_tracker.update_offset(session_path, 0, new_total)
     offset_tracker.save()
@@ -622,24 +1005,32 @@ def ship_batch_file(session_path, agent, config, transport, offset_tracker, reda
 
 
 def cmd_batch(args):
-    """Handle 'batch' subcommand."""
     config = load_config(args.config)
+
+    if not _feat(config, "shipping_enabled"):
+        log.info("Shipping is disabled (features.shipping_enabled = false)")
+        return
+
+    config = sync_policy(config)
     transport = create_transport(config, dry_run=args.dry_run)
     offset_tracker = OffsetTracker(config["state_file"])
     redactor = build_redactor(config)
+    oidc_mgr = OIDCTokenManager(config["endpoint"]["auth"]) if _feat(config, "oidc_auth") else None
+
+    if _feat(config, "multi_tenant") and not config.get("identity", {}).get("organization"):
+        log.error("multi_tenant is enabled but identity.organization is empty")
+        return
 
     agents = [args.agent] if args.agent else config.get("watch", {}).get("agents", ["claude", "codex", "gemini"])
 
     if args.input:
-        # Ship specific files
         agent = args.agent or "claude"
         for path in args.input:
             if os.path.isfile(path):
-                ship_batch_file(path, agent, config, transport, offset_tracker, redactor)
+                ship_batch_file(path, agent, config, transport, offset_tracker, redactor, oidc_mgr)
             else:
                 log.error("File not found: %s", path)
     else:
-        # Discover and ship all sessions
         total = 0
         for agent in agents:
             adapter = _get_adapter(agent)
@@ -647,7 +1038,7 @@ def cmd_batch(args):
             log.info("Found %d %s sessions", len(sessions), agent)
             for session in sessions:
                 shipped = ship_batch_file(
-                    session["path"], agent, config, transport, offset_tracker, redactor
+                    session["path"], agent, config, transport, offset_tracker, redactor, oidc_mgr
                 )
                 total += shipped
         log.info("Total: %d messages shipped", total)
@@ -661,10 +1052,9 @@ class FileWatcher:
     def __init__(self, agents, config):
         self.agents = agents
         self.polling_interval = config.get("watch", {}).get("polling_interval_seconds", 2)
-        self._known_files = {}  # path -> mtime
+        self._known_files = {}
 
     def poll(self):
-        """Poll for new/modified session files. Returns [(path, agent, is_new)]."""
         changed = []
         for agent in self.agents:
             adapter = _get_adapter(agent)
@@ -690,7 +1080,6 @@ class FileWatcher:
 
 
 def _parse_line_claude(line_text, adapter):
-    """Parse one JSONL line from Claude into a common-model message or None."""
     try:
         data = json.loads(line_text)
     except json.JSONDecodeError:
@@ -715,11 +1104,8 @@ def _parse_line_claude(line_text, adapter):
             tool_results.append({"content": rt})
 
     entry = {
-        "role": role,
-        "text": text.strip(),
-        "tool_uses": tool_uses,
-        "tool_results": tool_results,
-        "thinking": thinking,
+        "role": role, "text": text.strip(), "tool_uses": tool_uses,
+        "tool_results": tool_results, "thinking": thinking,
         "timestamp": data.get("timestamp", ""),
     }
     if entry["text"] or entry["tool_uses"] or entry["tool_results"] or entry["thinking"]:
@@ -728,13 +1114,11 @@ def _parse_line_claude(line_text, adapter):
 
 
 def _parse_line_codex(line_text, adapter):
-    """Parse one JSONL line from Codex into a common-model message or None."""
     try:
         data = json.loads(line_text)
     except json.JSONDecodeError:
         return None
-    msg_type = data.get("type", "")
-    if msg_type not in ("message",):
+    if data.get("type") not in ("message",):
         return None
     message = data.get("message", {})
     role = message.get("role", "")
@@ -759,23 +1143,18 @@ def _parse_line_codex(line_text, adapter):
                         tool_results.append({"content": str(output)})
 
     entry = {
-        "role": role,
-        "text": text.strip() if text else "",
-        "tool_uses": tool_uses,
-        "tool_results": tool_results,
-        "thinking": thinking,
-        "timestamp": data.get("timestamp", ""),
+        "role": role, "text": text.strip() if text else "",
+        "tool_uses": tool_uses, "tool_results": tool_results,
+        "thinking": thinking, "timestamp": data.get("timestamp", ""),
     }
     if entry["text"] or entry["tool_uses"] or entry["tool_results"] or entry["thinking"]:
         return entry
     return None
 
 
-def ship_stream_file(file_path, agent, config, transport, offset_tracker, redactor):
-    """Read new lines from a file and ship them."""
+def ship_stream_file(file_path, agent, config, transport, offset_tracker, redactor, oidc_mgr=None):
     byte_offset, line_count = offset_tracker.get_offset(file_path)
 
-    # Detect truncation
     try:
         file_size = os.path.getsize(file_path)
     except OSError:
@@ -795,7 +1174,6 @@ def ship_stream_file(file_path, agent, config, transport, offset_tracker, redact
 
     envelope = build_envelope(config, file_path, agent, project)
 
-    # Gemini: full JSON, not JSONL
     if agent == "gemini":
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -808,8 +1186,10 @@ def ship_stream_file(file_path, agent, config, transport, offset_tracker, redact
             batch = []
             for i, msg in enumerate(new_messages):
                 msg_idx = line_count + i + 1
-                doc = process_message(msg, msg_idx, envelope, config, redactor)
+                doc, sec_flags, banned = process_message(msg, msg_idx, envelope, config, redactor, oidc_mgr)
                 batch.append(doc)
+                if sec_flags or banned:
+                    send_webhook(config, sec_flags, doc)
             ok, _ = transport.ship(batch)
             offset_tracker.update_offset(file_path, 0, len(all_messages))
             offset_tracker.save()
@@ -818,7 +1198,6 @@ def ship_stream_file(file_path, agent, config, transport, offset_tracker, redact
             log.warning("Gemini parse error: %s", e)
             return 0
 
-    # JSONL agents: read from byte offset
     new_lines = 0
     batch = []
     batch_size = config.get("shipping", {}).get("batch_size", 50)
@@ -844,8 +1223,11 @@ def ship_stream_file(file_path, agent, config, transport, offset_tracker, redact
                 if msg is None:
                     continue
 
-                doc = process_message(msg, msg_idx, envelope, config, redactor)
+                doc, sec_flags, banned = process_message(msg, msg_idx, envelope, config, redactor, oidc_mgr)
                 batch.append(doc)
+
+                if sec_flags or banned:
+                    send_webhook(config, sec_flags, doc)
 
                 if len(batch) >= batch_size:
                     ok, _ = transport.ship(batch)
@@ -879,12 +1261,18 @@ def _handle_signal(signum, frame):
 
 
 def cmd_watch(args):
-    """Handle 'watch' subcommand."""
     global _shutdown
     config = load_config(args.config)
+
+    if not _feat(config, "shipping_enabled"):
+        log.info("Shipping is disabled (features.shipping_enabled = false)")
+        return
+
+    config = sync_policy(config)
     transport = create_transport(config)
     offset_tracker = OffsetTracker(config["state_file"])
     redactor = build_redactor(config)
+    oidc_mgr = OIDCTokenManager(config["endpoint"]["auth"]) if _feat(config, "oidc_auth") else None
 
     agents = args.agent or config.get("watch", {}).get("agents", ["claude", "codex", "gemini"])
     watcher = FileWatcher(agents, config)
@@ -895,14 +1283,21 @@ def cmd_watch(args):
     log.info("Watch daemon started (agents: %s, polling: %ds)",
              ", ".join(agents), watcher.polling_interval)
 
-    # Initial poll to populate known files
     watcher.poll()
+    policy_sync_at = time.monotonic()
+    policy_interval = config.get("policy_sync", {}).get("interval_seconds", 300)
 
     while not _shutdown:
+        # Periodic policy sync
+        if _feat(config, "auto_policy_sync") and time.monotonic() - policy_sync_at > policy_interval:
+            config = sync_policy(config)
+            redactor = build_redactor(config)
+            policy_sync_at = time.monotonic()
+
         changed = watcher.poll()
         for path, agent, is_new in changed:
             try:
-                ship_stream_file(path, agent, config, transport, offset_tracker, redactor)
+                ship_stream_file(path, agent, config, transport, offset_tracker, redactor, oidc_mgr)
             except Exception as e:
                 log.error("Error shipping %s: %s", path, e)
         time.sleep(watcher.polling_interval)
@@ -915,7 +1310,6 @@ def cmd_watch(args):
 # ---------------------------------------------------------------------------
 
 def cmd_lookup(args):
-    """Handle 'lookup' subcommand."""
     config = load_config(args.config)
     offset_tracker = OffsetTracker(config["state_file"])
     session_map = offset_tracker.get_session_map()
@@ -932,7 +1326,6 @@ def cmd_lookup(args):
         print(f"Session: {file_path}")
         if args.open_player:
             import subprocess
-            # Determine agent from path
             agent = "claude"
             if "codex" in file_path.lower():
                 agent = "codex"
@@ -941,10 +1334,9 @@ def cmd_lookup(args):
             cmd = [sys.executable, str(_script_dir / "log-replay.py"),
                    "--agent", agent, file_path, "-f", "player"]
             if args.message:
-                cmd += ["--render-arg", f"--range", "--render-arg", str(args.message)]
+                cmd += ["--render-arg", "--range", "--render-arg", str(args.message)]
             subprocess.run(cmd)
     else:
-        # List all known sessions
         print(f"{'Session ID':18}  {'Agent':8}  Path")
         print(f"{'─' * 18}  {'─' * 8}  {'─' * 60}")
         for sid, fpath in sorted(session_map.items()):
@@ -957,11 +1349,128 @@ def cmd_lookup(args):
 
 
 # ---------------------------------------------------------------------------
+# Enterprise commands
+# ---------------------------------------------------------------------------
+
+def cmd_retry_dlq(args):
+    """Retry shipping dead letter queue entries."""
+    config = load_config(args.config)
+    dlq = DeadLetterQueue(config)
+    docs = dlq.read_all()
+    if not docs:
+        print("DLQ is empty.")
+        return
+    print(f"Found {len(docs)} DLQ entries. Re-shipping...")
+
+    transport = create_transport(config)
+    # Strip DLQ metadata
+    clean_docs = []
+    for doc in docs:
+        clean = {k: v for k, v in doc.items() if not k.startswith("_dlq_")}
+        clean_docs.append(clean)
+
+    ok, err = transport.ship(clean_docs)
+    print(f"Shipped: {ok}, Failed: {err}")
+
+    if ok > 0 and err == 0:
+        # Clean up DLQ files
+        for f in dlq.list_files():
+            f.unlink()
+        print("DLQ cleared.")
+
+
+def cmd_policy_sync(args):
+    """One-shot policy sync."""
+    config = load_config(args.config)
+    config = sync_policy(config)
+    print("Policy sync complete.")
+    bw = config.get("security", {}).get("banned_words", [])
+    sp = config.get("security", {}).get("sensitive_paths", [])
+    print(f"  Banned words: {len(bw)}")
+    print(f"  Sensitive paths: {len(sp)}")
+
+
+def cmd_decrypt(args):
+    """Decrypt an encrypted export file."""
+    key_file = os.path.expanduser(args.key or "~/.claude-replay/encryption.key")
+    try:
+        with open(key_file, "rb") as f:
+            key = f.read().strip()
+    except OSError:
+        print(f"Key file not found: {key_file}")
+        return
+
+    try:
+        from cryptography.fernet import Fernet
+    except ImportError:
+        print("cryptography library not installed. Install with: pip install cryptography")
+        return
+
+    try:
+        with open(args.input, "rb") as f:
+            encrypted = f.read()
+        fernet = Fernet(key)
+        decrypted = fernet.decrypt(encrypted)
+
+        # Check if gzip compressed
+        if decrypted[:2] == b'\x1f\x8b':
+            decrypted = gzip.decompress(decrypted)
+
+        with open(args.output, "wb") as f:
+            f.write(decrypted)
+        print(f"Decrypted: {args.input} -> {args.output}")
+    except Exception as e:
+        print(f"Decryption failed: {e}")
+
+
+def cmd_validate_config(args):
+    """Validate config and test connectivity."""
+    config = load_config(args.config)
+    features = config.get("features", {})
+
+    print("Feature flags:")
+    for k, v in sorted(features.items()):
+        status = "ON" if v else "off"
+        print(f"  {k:25} {status}")
+
+    print(f"\nEndpoint: {config['endpoint']['type']}")
+    print(f"  URL: {config['endpoint'].get('url', '(none)')}")
+    print(f"  Auth: {config['endpoint']['auth']['type']}")
+    print(f"  Index: {config['endpoint'].get('index', '?')}")
+
+    if config["endpoint"]["type"] in ("opensearch", "rest") and config["endpoint"].get("url"):
+        print("\nConnectivity test...")
+        try:
+            url = config["endpoint"]["url"].rstrip("/")
+            req = urllib.request.Request(f"{url}/_cluster/health", method="GET")
+            if not config["endpoint"].get("verify_ssl", True):
+                import ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                resp = urllib.request.urlopen(req, timeout=10, context=ctx)
+            else:
+                resp = urllib.request.urlopen(req, timeout=10)
+            health = json.loads(resp.read().decode())
+            print(f"  Cluster: {health.get('cluster_name', '?')} ({health.get('status', '?')})")
+            print("  Connection: OK")
+        except Exception as e:
+            print(f"  Connection: FAILED ({e})")
+
+    if features.get("multi_tenant"):
+        org = config.get("identity", {}).get("organization", "")
+        print(f"\nMulti-tenant: strategy={config['multi_tenant']['strategy']}, org={org or '(empty!)'}")
+        if not org:
+            print("  WARNING: organization is empty but multi_tenant is enabled")
+
+    print("\nConfig validation complete.")
+
+
+# ---------------------------------------------------------------------------
 # Init config & status
 # ---------------------------------------------------------------------------
 
 def cmd_init_config(args):
-    """Generate default config file."""
     output = args.output or "shipper-config.json"
     if os.path.exists(output) and not args.force:
         print(f"{output} already exists. Use --force to overwrite.")
@@ -970,9 +1479,20 @@ def cmd_init_config(args):
         json.dump(DEFAULT_CONFIG, f, ensure_ascii=False, indent=2)
     print(f"Config written to {output}")
 
+    if args.generate_key:
+        key_path = os.path.expanduser(DEFAULT_CONFIG["encryption"]["key_file"])
+        os.makedirs(os.path.dirname(key_path) or ".", exist_ok=True)
+        try:
+            from cryptography.fernet import Fernet
+            key = Fernet.generate_key()
+            with open(key_path, "wb") as f:
+                f.write(key)
+            print(f"Encryption key written to {key_path}")
+        except ImportError:
+            print("cryptography library not installed. Skipping key generation.")
+
 
 def cmd_status(args):
-    """Show shipping state and stats."""
     config = load_config(args.config)
     tracker = OffsetTracker(config["state_file"])
 
@@ -992,7 +1512,15 @@ def cmd_status(args):
         fname = Path(fpath).name if len(fpath) > 50 else fpath
         print(f"  {sid:18}  {count:>8}  {last:20}  {fname}")
 
-    print(f"\n  Total: {len(files)} sessions, {total_msgs} messages shipped\n")
+    print(f"\n  Total: {len(files)} sessions, {total_msgs} messages shipped")
+
+    # DLQ status
+    dlq = DeadLetterQueue(config)
+    dlq_files = dlq.list_files()
+    if dlq_files:
+        dlq_docs = dlq.read_all()
+        print(f"  DLQ: {len(dlq_files)} files, {len(dlq_docs)} entries pending retry")
+    print()
 
 
 # ---------------------------------------------------------------------------
@@ -1027,22 +1555,39 @@ def main():
     init_p = sub.add_parser("init-config", help="Generate default config file")
     init_p.add_argument("--output", "-o", default="shipper-config.json")
     init_p.add_argument("--force", action="store_true")
+    init_p.add_argument("--generate-key", action="store_true", help="generate encryption key")
 
     # status
     sub.add_parser("status", help="Show shipping state and stats")
 
+    # Enterprise commands
+    sub.add_parser("retry-dlq", help="Re-ship dead letter queue entries")
+    sub.add_parser("policy-sync", help="One-shot policy sync from central endpoint")
+
+    decrypt_p = sub.add_parser("decrypt", help="Decrypt an encrypted export file")
+    decrypt_p.add_argument("--input", "-i", required=True, help="encrypted file")
+    decrypt_p.add_argument("--output", "-o", required=True, help="output file")
+    decrypt_p.add_argument("--key", help="encryption key file path")
+
+    sub.add_parser("validate-config", help="Validate config and test connectivity")
+
     args = parser.parse_args()
 
-    if args.command == "batch":
-        cmd_batch(args)
-    elif args.command == "watch":
-        cmd_watch(args)
-    elif args.command == "lookup":
-        cmd_lookup(args)
-    elif args.command == "init-config":
-        cmd_init_config(args)
-    elif args.command == "status":
-        cmd_status(args)
+    commands = {
+        "batch": cmd_batch,
+        "watch": cmd_watch,
+        "lookup": cmd_lookup,
+        "init-config": cmd_init_config,
+        "status": cmd_status,
+        "retry-dlq": cmd_retry_dlq,
+        "policy-sync": cmd_policy_sync,
+        "decrypt": cmd_decrypt,
+        "validate-config": cmd_validate_config,
+    }
+
+    handler = commands.get(args.command)
+    if handler:
+        handler(args)
     else:
         parser.print_help()
 

@@ -1,4 +1,19 @@
 {
+  "features": {
+    "shipping_enabled": true,
+    "security_analysis": true,
+    "banned_word_detection": true,
+    "redaction": true,
+    "oidc_auth": false,
+    "dls": false,
+    "multi_tenant": false,
+    "webhooks": false,
+    "metadata_only": false,
+    "auto_policy_sync": false,
+    "compression": false,
+    "encryption_at_rest": false,
+    "dead_letter_queue": true
+  },
   "endpoint": {
     "type": "file",
     "url": "https://opensearch.example.com:9200",
@@ -7,7 +22,12 @@
       "type": "none",
       "api_key": "",
       "username": "",
-      "password": ""
+      "password": "",
+      "issuer_url": "",
+      "client_id": "",
+      "client_secret": "",
+      "scopes": ["openid"],
+      "token_cache_path": "~/.claude-replay/oidc-token.json"
     },
     "timeout_seconds": 30,
     "verify_ssl": true
@@ -19,7 +39,8 @@
   "identity": {
     "user_id": "",
     "hostname": "",
-    "organization": ""
+    "organization": "",
+    "roles": []
   },
   "scope": {
     "include_text": true,
@@ -46,6 +67,26 @@
     "suspicious_commands": ["curl ", "wget ", "nc ", "ncat ", "base64 ", "eval "],
     "banned_words": []
   },
+  "webhooks": {
+    "url": "",
+    "events": ["security_high", "banned_word"],
+    "format": "generic",
+    "headers": {},
+    "timeout_seconds": 10,
+    "max_retries": 2
+  },
+  "policy_sync": {
+    "url": "",
+    "interval_seconds": 300,
+    "auth_same_as_endpoint": true
+  },
+  "encryption": {
+    "key_file": "~/.claude-replay/encryption.key"
+  },
+  "multi_tenant": {
+    "strategy": "index_per_tenant",
+    "index_prefix": "agent-sessions"
+  },
   "watch": {
     "agents": ["claude", "codex", "gemini"],
     "polling_interval_seconds": 2
@@ -56,6 +97,9 @@
     "max_retries": 3,
     "retry_backoff_seconds": 2,
     "max_field_size": 10240
+  },
+  "dlq": {
+    "directory": "~/.claude-replay/dlq/"
   },
   "state_file": "~/.claude-replay/shipper-state.json"
 }
