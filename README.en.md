@@ -2,7 +2,7 @@
 
 [🇯🇵 日本語](README.md) | 🇺🇸 English
 
-A tool to convert Claude Code / Codex session logs (JSONL) to a **common model (JSON)**, then output to Markdown / HTML / MP4 / interactive player.
+A tool to convert Claude Code / Codex / Gemini CLI session logs (JSONL/JSON) to a **common model (JSON)**, then output to Markdown / HTML / MP4 / interactive player.
 
 ## Demo
 
@@ -13,7 +13,9 @@ A tool to convert Claude Code / Codex session logs (JSONL) to a **common model (
 ## Session Log Location
 
 ```
-~/.claude/projects/<project-path>/*.jsonl
+~/.claude/projects/<project-path>/*.jsonl              # Claude Code
+~/.codex/sessions/<nested-path>/*.jsonl                # Codex CLI
+~/.gemini/tmp/<project-dir>/chats/session-*.json       # Gemini CLI
 ```
 
 ## Installation
@@ -50,6 +52,7 @@ python3 -m playwright install
 source .venv/bin/activate
 python3 log-replay.py --agent claude -f player          # Claude → Player
 python3 log-replay.py --agent codex -f terminal         # Codex → Terminal
+python3 log-replay.py --agent gemini -f player          # Gemini → Player
 python3 log-replay.py --agent claude -f html -t light   # HTML Light theme
 ```
 
@@ -78,7 +81,7 @@ Open `http://localhost:5000` in your browser.
 **Features**:
 
 **Session Management**:
-- Auto-detect Claude Code / Codex sessions
+- Auto-detect Claude Code / Codex / Gemini CLI sessions
 - Select from session list
 - Preview messages
 
@@ -205,7 +208,13 @@ python3 claude-log2model.py <input.jsonl> [-o output.model.json]
 python3 codex-log2model.py <input.jsonl> [-o output.model.json]
 ```
 
-### 3) Common model → output
+### 3) Gemini CLI log → common model (with selection)
+
+```bash
+python3 gemini-log2model.py <input.json> [-o output.model.json]
+```
+
+### 4) Common model → output
 
 ```bash
 python3 log-model-renderer.py <input.model.json> [options]
@@ -342,6 +351,18 @@ python3 -m pip install flask playwright
 python3 -m playwright install
 ```
 
+## Documentation
+
+### Specification
+- [Vision](docs/vision.md) — Project vision and motivation
+- [Architecture](docs/architecture.md) — System design, pipeline model
+- [Data Model](docs/data-model.md) — Common model JSON schema
+- [Output Formats](docs/output-formats.md) — Output format specifications
+- [Agent Adapters](docs/agent-adapters.md) — Agent log formats and adapter specifications
+
+### Planning
+- [Backlog](docs/backlog.md) — Prioritized backlog and implementation progress
+
 ## Legacy Script
 
-`claude-session-replay.py` is retained as the original single-file script. The new multi-file architecture is recommended as it better separates Claude / Codex functionality.
+`claude-session-replay.py` is retained as the original single-file script. The new multi-file architecture is recommended as it better separates Claude / Codex / Gemini functionality.

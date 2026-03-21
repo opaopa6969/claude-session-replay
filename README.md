@@ -2,7 +2,7 @@
 
 🇯🇵 日本語 | [🇺🇸 English](README.en.md)
 
-Claude Code / Codex のセッションログ (JSONL) を **共通モデル(JSON)** に変換し、Markdown / HTML / MP4 / インタラクティブプレイヤーに出力するツール。
+Claude Code / Codex / Gemini CLI のセッションログ (JSONL/JSON) を **共通モデル(JSON)** に変換し、Markdown / HTML / MP4 / インタラクティブプレイヤーに出力するツール。
 
 ## Demo
 
@@ -13,7 +13,9 @@ Claude Code / Codex のセッションログ (JSONL) を **共通モデル(JSON)
 ## セッションログの場所
 
 ```
-~/.claude/projects/<プロジェクトパス>/*.jsonl
+~/.claude/projects/<プロジェクトパス>/*.jsonl        # Claude Code
+~/.codex/sessions/<ネストパス>/*.jsonl               # Codex CLI
+~/.gemini/tmp/<プロジェクト>/chats/session-*.json    # Gemini CLI
 ```
 
 ## インストール
@@ -50,6 +52,7 @@ python3 -m playwright install
 source .venv/bin/activate
 python3 log-replay.py --agent claude -f player          # Claude → Player
 python3 log-replay.py --agent codex -f terminal         # Codex → Terminal
+python3 log-replay.py --agent gemini -f player          # Gemini → Player
 python3 log-replay.py --agent claude -f html -t light   # HTML Light テーマ
 ```
 
@@ -78,7 +81,7 @@ python3 web_ui.py
 **機能**:
 
 **セッション管理**:
-- Claude Code / Codex セッションの自動検出
+- Claude Code / Codex / Gemini CLI セッションの自動検出
 - セッション一覧から選択
 - プレビューメッセージの表示
 
@@ -205,7 +208,13 @@ python3 claude-log2model.py <input.jsonl> [-o output.model.json]
 python3 codex-log2model.py <input.jsonl> [-o output.model.json]
 ```
 
-### 3) 共通モデル → 出力
+### 3) Gemini CLI ログ → 共通モデル (一覧選択あり)
+
+```bash
+python3 gemini-log2model.py <input.json> [-o output.model.json]
+```
+
+### 4) 共通モデル → 出力
 
 ```bash
 python3 log-model-renderer.py <input.model.json> [options]
@@ -341,6 +350,18 @@ python3 -m pip install flask playwright
 python3 -m playwright install
 ```
 
+## ドキュメント
+
+### 仕様
+- [ビジョン](docs/vision.md) — プロジェクトのビジョンと動機
+- [アーキテクチャ](docs/architecture.md) — システム設計、パイプラインモデル
+- [データモデル](docs/data-model.md) — 共通モデル JSON スキーマ
+- [出力フォーマット](docs/output-formats.md) — 各出力形式の詳細仕様
+- [エージェントアダプター](docs/agent-adapters.md) — 各エージェントのログ形式とアダプター仕様
+
+### 計画
+- [バックログ](docs/backlog.md) — 優先度付きバックログと実装進捗
+
 ## 旧スクリプト
 
-`claude-session-replay.py` は従来の単体スクリプトとして残しています。新構成のほうが Claude / Codex を分離できるため推奨です。
+`claude-session-replay.py` は従来の単体スクリプトとして残しています。新構成のほうが Claude / Codex / Gemini を分離できるため推奨です。
