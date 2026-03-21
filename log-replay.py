@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 
 def _run(cmd):
@@ -130,6 +131,59 @@ def _search_main(args):
     print()
 
 
+def _stats_main(args):
+    """Stats mode."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("session_stats", str(Path(__file__).parent / "session-stats.py"))
+    stats_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stats_mod)
+
+    if args.overview:
+        agents = [args.agent] if args.agent else ["claude", "codex", "gemini"]
+        overview = stats_mod.compute_overview_stats(agents)
+        stats_mod._print_overview_stats(overview)
+    else:
+        agent = args.agent or "claude"
+        if args.input:
+            path = args.input
+        else:
+            adapter = stats_mod._get_adapter(agent)
+            sessions = adapter.discover_sessions()
+            path = adapter.select_session(sessions)
+
+        model = stats_mod._build_common_model(path, agent)
+        stats = stats_mod.compute_session_stats(model)
+
+        if args.output and args.output.endswith(".html"):
+            html = stats_mod.render_stats_html(stats)
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(html)
+            print(f"Stats HTML written to {args.output}")
+        else:
+            stats_mod._print_session_stats(stats)
+
+
+def _diff_main(args):
+    """Diff mode."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("session_stats", str(Path(__file__).parent / "session-stats.py"))
+    stats_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stats_mod)
+
+    agent = args.agent or "claude"
+    model_a = stats_mod._build_common_model(args.diff[0], agent)
+    model_b = stats_mod._build_common_model(args.diff[1], agent)
+    diff = stats_mod.compute_diff(model_a, model_b)
+
+    if args.output and args.output.endswith(".html"):
+        html = stats_mod.render_diff_html(diff)
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"Diff HTML written to {args.output}")
+    else:
+        stats_mod._print_diff(diff)
+
+
 def _tui_main():
     """TUI mode (interactive)."""
     from log_replay_tui import LogReplayApp
@@ -166,13 +220,23 @@ def main():
     parser.add_argument("--case-sensitive", action="store_true", help="case-sensitive search")
     parser.add_argument("--regex", action="store_true", help="treat search query as regex")
 
+    # Stats & Diff options
+    parser.add_argument("--stats", action="store_true", help="show session statistics")
+    parser.add_argument("--overview", action="store_true", help="cross-session overview (with --stats)")
+    parser.add_argument("--diff", nargs=2, metavar=("SESSION_A", "SESSION_B"),
+                        help="compare two sessions side-by-side")
+
     args = parser.parse_args()
 
     if args.search:
         _search_main(args)
+    elif args.stats or args.overview:
+        _stats_main(args)
+    elif args.diff:
+        _diff_main(args)
     else:
         if not args.agent:
-            parser.error("--agent is required for replay mode (or use --search for search mode)")
+            parser.error("--agent is required for replay mode (or use --search/--stats/--diff)")
         _cli_main(args)
 
 

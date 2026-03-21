@@ -971,6 +971,64 @@ def api_search_cross_session():
         return jsonify({"error": str(e)}), 500
 
 
+import importlib.util as _ilu
+_stats_spec = _ilu.spec_from_file_location("session_stats", str(script_dir / "session-stats.py"))
+_stats_mod = _ilu.module_from_spec(_stats_spec)
+_stats_spec.loader.exec_module(_stats_mod)
+
+
+@app.route('/api/stats/session', methods=['POST'])
+def api_stats_session():
+    """Get statistics for a single session."""
+    try:
+        data = request.get_json()
+        agent = data.get("agent", "claude")
+        session_path = data.get("session_path", "")
+        if not session_path or not os.path.isfile(session_path):
+            return jsonify({"error": "Invalid session path"}), 400
+        model = _stats_mod._build_common_model(session_path, agent)
+        stats = _stats_mod.compute_session_stats(model)
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/stats/overview', methods=['GET'])
+def api_stats_overview():
+    """Get cross-session overview statistics."""
+    try:
+        agents = request.args.getlist("agent") or ["claude", "codex", "gemini"]
+        overview = _stats_mod.compute_overview_stats(agents)
+        return jsonify(overview)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/diff', methods=['POST'])
+def api_diff():
+    """Compare two sessions."""
+    try:
+        data = request.get_json()
+        agent = data.get("agent", "claude")
+        path_a = data.get("session_a", "")
+        path_b = data.get("session_b", "")
+        if not path_a or not path_b:
+            return jsonify({"error": "Two session paths required"}), 400
+
+        model_a = _stats_mod._build_common_model(path_a, agent)
+        model_b = _stats_mod._build_common_model(path_b, agent)
+        diff = _stats_mod.compute_diff(model_a, model_b)
+
+        # Don't send full messages array over API (too large), send summary
+        diff["messages_a"] = [{"role": m.get("role"), "text": m.get("text", "")[:100],
+                               "tools": len(m.get("tool_uses", []))} for m in diff["messages_a"][:200]]
+        diff["messages_b"] = [{"role": m.get("role"), "text": m.get("text", "")[:100],
+                               "tools": len(m.get("tool_uses", []))} for m in diff["messages_b"][:200]]
+        return jsonify(diff)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     print("Starting Web UI on http://localhost:5000")
     app.run(debug=True, host='localhost', port=5000)

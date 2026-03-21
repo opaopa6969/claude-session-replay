@@ -71,13 +71,20 @@
 8. ~~Offset tracking with crash recovery~~
 9. ~~Lookup command (session_id → local session → Player)~~
 
-## Phase 9 — New capabilities (planned)
+## Phase 9 — Statistics & Diff View ✓
+1. ~~session-stats.py — Statistics engine + Diff logic~~
+2. ~~Per-session stats: messages, duration, tools, text, thinking, timing~~
+3. ~~Cross-session overview: by agent, by project, tool distribution, timeline~~
+4. ~~Diff view: side-by-side comparison with tool breakdown~~
+5. ~~CLI: --stats, --overview, --diff flags in log-replay.py~~
+6. ~~HTML output: self-contained stats dashboard and diff view~~
+7. ~~Web UI: Stats button, Diff button with session picker~~
+
+## Phase 10 — New capabilities (planned)
 1. TUI mode (Textual-based terminal UI for session selection)
-2. Diff view — side-by-side comparison of two sessions
-3. Export to other formats (PDF, animated GIF)
-4. Session merging — combine multiple sessions into one timeline
-5. Statistics dashboard — token usage, tool frequency, session duration analytics
-6. Streaming mode — live-follow an active session
+2. Export to other formats (PDF, animated GIF)
+3. Session merging — combine multiple sessions into one timeline
+4. Streaming mode — live-follow an active session
 
 ## Phase 10 — Search scalability (planned)
 1. Search index backend — Whoosh / SQLite FTS5 for persistent full-text index
@@ -107,12 +114,11 @@
 | Alibai Mode | ✓ Complete | Timestamp visualization + playback modes |
 | search_utils.py | ✓ Complete | Full-text search with ProcessPoolExecutor |
 | session-shipper.py | ✓ Complete | Batch/watch shipping + security analysis |
+| session-stats.py | ✓ Complete | Statistics engine + Diff view |
 
 ### Remaining work (priority order)
 1. **TUI mode** — Textual-based interactive terminal UI (started, `log_replay_tui.py`)
 2. **Additional agent adapters** — Aider, Cursor, other agents
 3. **Enterprise OpenSearch** — Authentication, DLS, multi-tenant (pending internal review)
-4. **Diff view** — Compare two sessions side-by-side
-5. **Statistics** — Token usage, tool frequency, duration analytics
-6. **Export formats** — PDF, animated GIF
-7. **Streaming mode** — Live-follow active sessions
+4. **Export formats** — PDF, animated GIF
+5. **Streaming mode** — Live-follow active sessions

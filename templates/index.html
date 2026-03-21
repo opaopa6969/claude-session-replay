@@ -660,7 +660,27 @@
                         <span class="search-stats" id="withinSearchStats"></span>
                     </div>
                     <div class="preview" id="preview" style="display: block;">Select a session...</div>
-                    <button id="editBtn" style="width: 100%; margin-top: 15px; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">✏️ Edit</button>
+                    <div style="display: flex; gap: 8px; margin-top: 15px;">
+                        <button id="editBtn" style="flex: 1; padding: 10px; background: #4a9eff; border-color: #4a9eff; font-weight: bold;">✏️ Edit</button>
+                        <button id="statsBtn" onclick="showSessionStats()" style="flex: 1; padding: 10px; background: #ff9800; border-color: #ff9800; font-weight: bold;">📊 Stats</button>
+                        <button id="diffBtn" onclick="startDiffMode()" style="flex: 1; padding: 10px; background: #9c27b0; border-color: #9c27b0; font-weight: bold; color:white;">🔀 Diff</button>
+                    </div>
+                </div>
+
+                <!-- Stats section -->
+                <div id="statsSection" style="display: none;">
+                    <h2 style="margin-top: 20px;">📊 Session Statistics</h2>
+                    <button onclick="hideStats()" style="margin-bottom: 10px; padding: 6px 12px;">← Back</button>
+                    <div id="statsContent" style="background: #1a1a1a; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: calc(100vh - 300px); overflow-y: auto;"></div>
+                </div>
+
+                <!-- Diff section -->
+                <div id="diffSection" style="display: none;">
+                    <h2 style="margin-top: 20px;">🔀 Session Diff</h2>
+                    <button onclick="hideDiff()" style="margin-bottom: 10px; padding: 6px 12px;">← Back</button>
+                    <p style="color: #888; margin-bottom: 8px;" id="diffInstruction">Select a second session to compare with:</p>
+                    <ul class="sessions-list" id="diffSessionsList" style="max-height: 200px;"></ul>
+                    <div id="diffContent" style="background: #1a1a1a; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px; max-height: calc(100vh - 400px); overflow-y: auto;"></div>
                 </div>
 
                 <!-- Editor section -->
@@ -1579,6 +1599,180 @@
         // Search: cross-session
         // ---------------------------------------------------------------
         let crossSearchResults = [];
+
+        // ---------------------------------------------------------------
+        // Stats
+        // ---------------------------------------------------------------
+        function showSessionStats() {
+            if (!selectedSession) return;
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('editorSection').style.display = 'none';
+            document.getElementById('diffSection').style.display = 'none';
+            document.getElementById('statsSection').style.display = '';
+            const el = document.getElementById('statsContent');
+            el.textContent = 'Loading...';
+
+            fetch('/api/stats/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agent: selectedAgent, session_path: selectedSession.path })
+            })
+            .then(r => r.json())
+            .then(stats => {
+                if (stats.error) { el.textContent = 'Error: ' + stats.error; return; }
+                const mc = stats.message_count;
+                const ts = stats.tool_stats;
+                const tx = stats.text_stats;
+                const th = stats.thinking_stats;
+                const tm = stats.timing;
+                let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">`;
+                const cards = [
+                    [mc.total, 'Messages'], [mc.user, 'User'], [mc.assistant, 'Assistant'],
+                    [stats.duration.formatted, 'Duration'], [ts.total_uses, 'Tool Uses'],
+                    [tx.avg_chars_per_message.toLocaleString(), 'Avg Chars/Msg'],
+                    [tx.ratio + 'x', 'Asst/User Ratio'], [th.total_blocks, 'Thinking Blocks']
+                ];
+                cards.forEach(([v, l]) => {
+                    html += `<div style="background:#16213e;padding:12px;border-radius:6px;text-align:center;">
+                        <div style="font-size:22px;font-weight:bold;color:#4a9eff;">${v}</div>
+                        <div style="font-size:11px;color:#888;">${l}</div></div>`;
+                });
+                html += '</div>';
+
+                // Tool breakdown
+                if (Object.keys(ts.by_name).length > 0) {
+                    html += '<div style="margin-bottom:12px;"><strong style="color:#ff9800;">Tool Distribution</strong><table style="width:100%;margin-top:6px;">';
+                    const maxCount = Math.max(...Object.values(ts.by_name));
+                    for (const [name, count] of Object.entries(ts.by_name)) {
+                        const pct = (count / maxCount * 100).toFixed(0);
+                        html += `<tr><td style="width:100px;">${name}</td><td style="width:50px;text-align:right;">${count}</td><td><div style="background:#4a9eff;height:12px;width:${pct}%;border-radius:3px;"></div></td></tr>`;
+                    }
+                    html += '</table></div>';
+                }
+
+                // Timing
+                html += '<div><strong style="color:#ff9800;">Timing</strong><br>';
+                if (tm.avg_response_time_seconds) html += `Avg response: ${tm.avg_response_time_seconds}s | Max: ${tm.max_response_time_seconds}s | Min: ${tm.min_response_time_seconds}s<br>`;
+                if (tm.messages_per_minute) html += `Pace: ${tm.messages_per_minute} msgs/min<br>`;
+                html += `Text: ${tx.total_chars.toLocaleString()} chars (user: ${tx.user_chars.toLocaleString()}, assistant: ${tx.assistant_chars.toLocaleString()})<br>`;
+                if (th.total_chars > 0) html += `Thinking: ${th.total_chars.toLocaleString()} chars in ${th.total_blocks} blocks`;
+                html += '</div>';
+
+                el.innerHTML = html;
+            })
+            .catch(err => { el.textContent = 'Error: ' + err; });
+        }
+
+        function hideStats() {
+            document.getElementById('statsSection').style.display = 'none';
+            document.getElementById('previewSection').style.display = '';
+        }
+
+        // ---------------------------------------------------------------
+        // Diff
+        // ---------------------------------------------------------------
+        let diffSessionA = null;
+
+        function startDiffMode() {
+            if (!selectedSession) return;
+            diffSessionA = selectedSession;
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('editorSection').style.display = 'none';
+            document.getElementById('statsSection').style.display = 'none';
+            document.getElementById('diffSection').style.display = '';
+            document.getElementById('diffContent').innerHTML = '';
+            document.getElementById('diffInstruction').textContent = `Comparing: ${diffSessionA.project || 'Session A'} — select Session B:`;
+
+            // Load session list for B selection
+            fetch(`/api/sessions/${selectedAgent}`)
+            .then(r => r.json())
+            .then(data => {
+                const list = document.getElementById('diffSessionsList');
+                list.innerHTML = '';
+                data.sessions.forEach(session => {
+                    if (session.path === diffSessionA.path) return;
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${session.project || 'Unknown'}</strong>
+                        <span class="session-date">${session.date_str} | ${session.size_str}</span>`;
+                    li.addEventListener('click', () => runDiff(session));
+                    list.appendChild(li);
+                });
+            });
+        }
+
+        function runDiff(sessionB) {
+            const el = document.getElementById('diffContent');
+            el.innerHTML = '<div style="color:#888;">Computing diff...</div>';
+            document.getElementById('diffSessionsList').style.display = 'none';
+
+            fetch('/api/diff', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agent: selectedAgent,
+                    session_a: diffSessionA.path,
+                    session_b: sessionB.path
+                })
+            })
+            .then(r => r.json())
+            .then(diff => {
+                if (diff.error) { el.innerHTML = 'Error: ' + diff.error; return; }
+                const sa = diff.session_a;
+                const sb = diff.session_b;
+                const comp = diff.comparison;
+                const sign = v => v > 0 ? `<span style="color:#4caf50">+${v}</span>` : v < 0 ? `<span style="color:#f44336">${v}</span>` : '0';
+
+                let html = `<table style="width:100%;margin-bottom:16px;">
+                    <tr><th></th><th style="color:#4a9eff;">Session A</th><th style="color:#ff9800;">Session B</th><th>Diff</th></tr>
+                    <tr><td>Source</td><td>${escapeHtml(sa.source).slice(0,20)}</td><td>${escapeHtml(sb.source).slice(0,20)}</td><td></td></tr>
+                    <tr><td>Messages</td><td>${sa.message_count.total}</td><td>${sb.message_count.total}</td><td>${sign(comp.message_count_diff)}</td></tr>
+                    <tr><td>Duration</td><td>${sa.duration.formatted}</td><td>${sb.duration.formatted}</td><td></td></tr>
+                    <tr><td>Tool Uses</td><td>${sa.tool_stats.total_uses}</td><td>${sb.tool_stats.total_uses}</td><td>${sign(comp.tool_count_diff)}</td></tr>
+                    <tr><td>Text Chars</td><td>${sa.text_stats.total_chars.toLocaleString()}</td><td>${sb.text_stats.total_chars.toLocaleString()}</td><td>${sign(comp.text_chars_diff)}</td></tr>
+                </table>`;
+
+                // Tool comparison
+                const allTools = [...new Set([...Object.keys(sa.tool_stats.by_name), ...Object.keys(sb.tool_stats.by_name)])].sort();
+                if (allTools.length > 0) {
+                    html += `<strong style="color:#ff9800;">Tool Comparison</strong>
+                    <table style="width:100%;margin-top:6px;"><tr><th>Tool</th><th>A</th><th>B</th><th>Diff</th></tr>`;
+                    allTools.forEach(tool => {
+                        const a = sa.tool_stats.by_name[tool] || 0;
+                        const b = sb.tool_stats.by_name[tool] || 0;
+                        html += `<tr><td>${tool}</td><td>${a}</td><td>${b}</td><td>${sign(b - a)}</td></tr>`;
+                    });
+                    html += '</table>';
+                }
+
+                // Side-by-side messages
+                const msgsA = diff.messages_a || [];
+                const msgsB = diff.messages_b || [];
+                const maxMsgs = Math.min(Math.max(msgsA.length, msgsB.length), 100);
+                html += `<div style="margin-top:16px;"><strong style="color:#ff9800;">Messages (first ${maxMsgs})</strong>
+                <table style="width:100%;margin-top:6px;"><tr><th>#</th><th style="width:45%;">A</th><th style="width:45%;">B</th></tr>`;
+                for (let i = 0; i < maxMsgs; i++) {
+                    const a = msgsA[i];
+                    const b = msgsB[i];
+                    const cellA = a ? `<span style="color:${a.role==='user'?'#4caf50':'#4a9eff'}">[${a.role}]</span> ${escapeHtml((a.text||'').slice(0,60))}${a.tools ? ` <span style="color:#ff9800;">(${a.tools} tools)</span>` : ''}` : '—';
+                    const cellB = b ? `<span style="color:${b.role==='user'?'#4caf50':'#4a9eff'}">[${b.role}]</span> ${escapeHtml((b.text||'').slice(0,60))}${b.tools ? ` <span style="color:#ff9800;">(${b.tools} tools)</span>` : ''}` : '—';
+                    html += `<tr><td style="color:#555;">${i+1}</td><td style="font-size:11px;">${cellA}</td><td style="font-size:11px;">${cellB}</td></tr>`;
+                }
+                html += '</table></div>';
+
+                el.innerHTML = html;
+            })
+            .catch(err => { el.innerHTML = 'Error: ' + err; });
+        }
+
+        function hideDiff() {
+            document.getElementById('diffSection').style.display = 'none';
+            document.getElementById('diffSessionsList').style.display = '';
+            document.getElementById('previewSection').style.display = '';
+        }
+
+        // ---------------------------------------------------------------
+        // Cross-session search
+        // ---------------------------------------------------------------
 
         document.getElementById('crossSearchInput').addEventListener('keydown', e => {
             if (e.key === 'Enter') searchAcrossSessions();
