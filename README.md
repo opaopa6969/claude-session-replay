@@ -359,6 +359,10 @@ python3 -m playwright install
 - [出力フォーマット](docs/output-formats.md) — 各出力形式の詳細仕様
 - [エージェントアダプター](docs/agent-adapters.md) — 各エージェントのログ形式とアダプター仕様
 
+### エンタープライズ
+- [Enterprise Shipping Spec](docs/spec-enterprise-shipping.md) — 企業向けセッション送信仕様 (feature flags, 認証, DLS, マルチテナント)
+- [Enterprise Deployment Guide](docs/enterprise-deployment-guide.md) — OpenSearch連携の導入・運用ガイド
+
 ### 計画
 - [バックログ](docs/backlog.md) — 優先度付きバックログと実装進捗
 

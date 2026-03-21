@@ -360,6 +360,10 @@ python3 -m playwright install
 - [Output Formats](docs/output-formats.md) — Output format specifications
 - [Agent Adapters](docs/agent-adapters.md) — Agent log formats and adapter specifications
 
+### Enterprise
+- [Enterprise Shipping Spec](docs/spec-enterprise-shipping.md) — Enterprise session shipping specification (feature flags, auth, DLS, multi-tenant)
+- [Enterprise Deployment Guide](docs/enterprise-deployment-guide.md) — OpenSearch integration deployment and operations guide
+
 ### Planning
 - [Backlog](docs/backlog.md) — Prioritized backlog and implementation progress
 
