@@ -1,0 +1,61 @@
+{
+  "endpoint": {
+    "type": "file",
+    "url": "https://opensearch.example.com:9200",
+    "index": "agent-sessions",
+    "auth": {
+      "type": "none",
+      "api_key": "",
+      "username": "",
+      "password": ""
+    },
+    "timeout_seconds": 30,
+    "verify_ssl": true
+  },
+  "file_export": {
+    "directory": "./shipped-sessions/",
+    "format": "ndjson"
+  },
+  "identity": {
+    "user_id": "",
+    "hostname": "",
+    "organization": ""
+  },
+  "scope": {
+    "include_text": true,
+    "include_thinking": false,
+    "include_tool_use": true,
+    "include_tool_result": false
+  },
+  "redaction": {
+    "patterns": [
+      {
+        "name": "api_key",
+        "regex": "(?i)(api[_-]?key|token|secret)\\s*[:=]\\s*['\"]?([A-Za-z0-9_\\-]{20,})",
+        "replacement": "$1=***REDACTED***"
+      },
+      {
+        "name": "email",
+        "regex": "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+        "replacement": "***EMAIL***"
+      }
+    ]
+  },
+  "security": {
+    "sensitive_paths": ["/etc/shadow", "/etc/passwd", ".env", "credentials", "id_rsa", ".ssh/"],
+    "suspicious_commands": ["curl ", "wget ", "nc ", "ncat ", "base64 ", "eval "],
+    "banned_words": []
+  },
+  "watch": {
+    "agents": ["claude", "codex", "gemini"],
+    "polling_interval_seconds": 2
+  },
+  "shipping": {
+    "batch_size": 50,
+    "flush_interval_seconds": 5,
+    "max_retries": 3,
+    "retry_backoff_seconds": 2,
+    "max_field_size": 10240
+  },
+  "state_file": "~/.claude-replay/shipper-state.json"
+}

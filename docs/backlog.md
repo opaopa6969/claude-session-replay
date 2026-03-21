@@ -53,20 +53,44 @@
 4. Table rendering in terminal format
 5. Sub-agent message handling
 
-## Phase 7 — New capabilities (planned)
+## Phase 7 — Full-text search ✓
+1. ~~search_utils.py — Core search with ProcessPoolExecutor parallel scanning~~
+2. ~~Web UI cross-session search — Search bar above session list~~
+3. ~~Web UI within-session search — Search bar in preview/editor with highlight~~
+4. ~~Player/Terminal HTML embedded search — `/` key, Enter/Shift+Enter navigation~~
+5. ~~CLI search — `--search` flag with `--regex`, `--case-sensitive`, `--search-scope`~~
+
+## Phase 8 — Session Shipper ✓
+1. ~~session-shipper.py — Batch + Watch (daemon) mode~~
+2. ~~Identity envelope (user_id, hostname, organization)~~
+3. ~~Redaction engine (regex patterns for API keys, emails, etc.)~~
+4. ~~Scope filtering (include/exclude text, thinking, tool_use, tool_result)~~
+5. ~~Security analysis (sensitive file read/write, suspicious commands, external URL access)~~
+6. ~~Banned word detection~~
+7. ~~Transport layer (OpenSearch HTTP Bulk API + File export for Filebeat)~~
+8. ~~Offset tracking with crash recovery~~
+9. ~~Lookup command (session_id → local session → Player)~~
+
+## Phase 9 — New capabilities (planned)
 1. TUI mode (Textual-based terminal UI for session selection)
 2. Diff view — side-by-side comparison of two sessions
-3. Search — full-text search within a session replay
-4. Export to other formats (PDF, animated GIF)
-5. Session merging — combine multiple sessions into one timeline
-6. Statistics dashboard — token usage, tool frequency, session duration analytics
-7. Streaming mode — live-follow an active session
+3. Export to other formats (PDF, animated GIF)
+4. Session merging — combine multiple sessions into one timeline
+5. Statistics dashboard — token usage, tool frequency, session duration analytics
+6. Streaming mode — live-follow an active session
 
-## Phase 8 — Search scalability (planned)
+## Phase 10 — Search scalability (planned)
 1. Search index backend — Whoosh / SQLite FTS5 for persistent full-text index
 2. Lucene / OpenSearch integration — for large-scale deployments (hundreds~thousands of sessions)
 3. Incremental indexing — index new sessions on discovery, skip already-indexed
 4. Search result ranking — relevance scoring beyond simple match order
+
+## Phase 11 — Enterprise OpenSearch integration (planned, pending internal review)
+1. OpenSearch Security Plugin 連携 — SAML/OIDC 認証でuser_id正当性担保
+2. Document Level Security — ユーザーごとのアクセス制御
+3. SaaS化対応 — organization フィールドによるマルチテナント
+4. OpenSearch Dashboards 連携 — セキュリティアラート・禁止ワードダッシュボード
+5. Web UI → OpenSearch → ローカルセッション逆引き連携
 
 
 ## Implementation progress
@@ -77,15 +101,17 @@
 | codex-log2model.py | ✓ Complete | Codex CLI JSONL → common model |
 | gemini-log2model.py | ✓ Complete | Gemini CLI JSON → common model |
 | log-model-renderer.py | ✓ Complete | Common model → md/html/player/terminal |
-| log-replay.py | ✓ Complete | CLI wrapper (pipeline orchestrator) |
+| log-replay.py | ✓ Complete | CLI wrapper + search + shipper integration |
 | log-replay-mp4.py | ✓ Complete | Video export (Playwright + FFmpeg) |
-| web_ui.py | ✓ Complete | Flask Web UI |
+| web_ui.py | ✓ Complete | Flask Web UI + search APIs |
 | Alibai Mode | ✓ Complete | Timestamp visualization + playback modes |
+| search_utils.py | ✓ Complete | Full-text search with ProcessPoolExecutor |
+| session-shipper.py | ✓ Complete | Batch/watch shipping + security analysis |
 
 ### Remaining work (priority order)
 1. **TUI mode** — Textual-based interactive terminal UI (started, `log_replay_tui.py`)
 2. **Additional agent adapters** — Aider, Cursor, other agents
-3. **Session search** — Full-text search across sessions
+3. **Enterprise OpenSearch** — Authentication, DLS, multi-tenant (pending internal review)
 4. **Diff view** — Compare two sessions side-by-side
 5. **Statistics** — Token usage, tool frequency, duration analytics
 6. **Export formats** — PDF, animated GIF
