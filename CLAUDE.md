@@ -29,6 +29,14 @@ python3 log-model-renderer.py session.model.json -f player -o out.html
 
 # Video
 python3 log-replay-mp4.py --agent claude session.jsonl -f player -o out.mp4
+
+# PDF
+python3 log-replay-pdf.py --agent claude session.jsonl -o out.pdf
+python3 log-replay.py --agent claude -f pdf -o out.pdf
+
+# Animated GIF
+python3 log-replay-gif.py --agent claude session.jsonl -o out.gif
+python3 log-replay.py --agent claude -f gif -o out.gif
 ```
 
 ### Setup
@@ -39,6 +47,8 @@ source .venv/bin/activate
 # Basic CLI: no pip install needed
 # Web UI: pip install flask playwright && python3 -m playwright install
 # Video: pip install playwright && python3 -m playwright install  (+ ffmpeg in PATH)
+# PDF: pip install playwright && python3 -m playwright install
+# GIF: pip install playwright Pillow && python3 -m playwright install  (or ffmpeg)
 ```
 
 ### Test
@@ -61,6 +71,8 @@ python3 log-replay.py --agent claude -f player -o /tmp/test.html
 | `gemini-log2model.py` | Gemini CLI log → common model | ~223 |
 | `log-model-renderer.py` | Common model → md/html/player/terminal | ~2580 |
 | `log-replay-mp4.py` | HTML → MP4 via Playwright + FFmpeg | ~160 |
+| `log-replay-pdf.py` | HTML → PDF via Playwright | ~130 |
+| `log-replay-gif.py` | HTML → animated GIF via Playwright + Pillow/FFmpeg | ~210 |
 | `web_ui.py` | Flask Web UI | ~934 |
 | `templates/index.html` | Web UI template | ~large |
 | `claude-session-replay.py` | Legacy single-file script (retained) | ~2162 |

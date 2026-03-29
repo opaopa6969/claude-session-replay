@@ -15,6 +15,35 @@ def _run(cmd):
 
 def _cli_main(args):
     """CLI mode (with command-line arguments)."""
+    # Delegate pdf/gif to their standalone export scripts
+    if args.format in ("pdf", "gif"):
+        script = "log-replay-pdf.py" if args.format == "pdf" else "log-replay-gif.py"
+        cmd = [sys.executable, script, "--agent", args.agent]
+        if args.input:
+            cmd.append(args.input)
+        if args.output:
+            cmd += ["-o", args.output]
+        if args.project:
+            cmd += ["--project", args.project]
+        if args.filter:
+            cmd += ["--filter", args.filter]
+        if args.theme:
+            cmd += ["-t", args.theme]
+        if args.log_arg:
+            for extra in args.log_arg:
+                if extra.startswith("-"):
+                    cmd.append("--log-arg={0}".format(extra))
+                else:
+                    cmd += ["--log-arg", extra]
+        if args.render_arg:
+            for extra in args.render_arg:
+                if extra.startswith("-"):
+                    cmd.append("--render-arg={0}".format(extra))
+                else:
+                    cmd += ["--render-arg", extra]
+        res = _run(cmd)
+        raise SystemExit(res.returncode)
+
     if args.agent == "claude":
         log2model = "claude-log2model.py"
         agent_args = []
@@ -22,6 +51,16 @@ def _cli_main(args):
             agent_args += ["--project", args.project]
     elif args.agent == "gemini":
         log2model = "gemini-log2model.py"
+        agent_args = []
+        if args.project:
+            agent_args += ["--project", args.project]
+    elif args.agent == "aider":
+        log2model = "aider-log2model.py"
+        agent_args = []
+        if args.project:
+            agent_args += ["--project", args.project]
+    elif args.agent == "cursor":
+        log2model = "cursor-log2model.py"
         agent_args = []
         if args.project:
             agent_args += ["--project", args.project]
@@ -72,7 +111,7 @@ def _search_main(args):
     import search_utils
 
     query = args.search
-    agents = [args.agent] if args.agent else ["claude", "codex", "gemini"]
+    agents = [args.agent] if args.agent else ["claude", "codex", "gemini", "aider", "cursor"]
 
     options = {
         "case_sensitive": args.case_sensitive,
@@ -139,7 +178,7 @@ def _stats_main(args):
     spec.loader.exec_module(stats_mod)
 
     if args.overview:
-        agents = [args.agent] if args.agent else ["claude", "codex", "gemini"]
+        agents = [args.agent] if args.agent else ["claude", "codex", "gemini", "aider", "cursor"]
         overview = stats_mod.compute_overview_stats(agents)
         stats_mod._print_overview_stats(overview)
     else:
@@ -184,6 +223,30 @@ def _diff_main(args):
         stats_mod._print_diff(diff)
 
 
+def _stream_main(args):
+    """Stream/follow mode: delegate to log-replay-stream.py."""
+    cmd = [sys.executable, str(Path(__file__).parent / "log-replay-stream.py")]
+    if args.agent:
+        cmd += ["--agent", args.agent]
+    if args.input:
+        cmd.append(args.input)
+    else:
+        cmd.append("--session")
+    cmd.append("-f")
+    cmd += ["--poll-interval", str(args.poll_interval)]
+    # For streaming, default to terminal output (not md which is the replay default)
+    # Only use markdown if user explicitly requested it via --format
+    fmt_is_explicit = any(a in sys.argv for a in ("-f", "--format"))
+    # Check if -f was used as --follow (short flag collision); use --format presence
+    if "--format" in sys.argv or (fmt_is_explicit and args.format == "terminal"):
+        stream_fmt = "markdown" if args.format in ("md", "markdown") else "terminal"
+    else:
+        stream_fmt = "terminal"
+    cmd += ["--format", stream_fmt]
+    res = _run(cmd)
+    raise SystemExit(res.returncode)
+
+
 def _tui_main():
     """TUI mode (interactive)."""
     from log_replay_tui import LogReplayApp
@@ -199,12 +262,12 @@ def main():
 
     # Otherwise, use CLI mode
     parser = argparse.ArgumentParser(description="Replay Claude/Codex/Gemini logs via common model")
-    parser.add_argument("--agent", choices=["claude", "codex", "gemini"], default=None,
+    parser.add_argument("--agent", choices=["claude", "codex", "gemini", "aider", "cursor"], default=None,
                         help="log agent type (required for replay, optional for search)")
     parser.add_argument("input", nargs="?", default=None, help="input JSONL file path (omit to select)")
     parser.add_argument("-o", "--output", help="output file path")
-    parser.add_argument("-f", "--format", choices=["md", "html", "player", "terminal"], default="md",
-                        help="output format: md, html, player, or terminal")
+    parser.add_argument("-f", "--format", choices=["md", "html", "player", "terminal", "pdf", "gif"], default="md",
+                        help="output format: md, html, player, terminal, pdf, or gif")
     parser.add_argument("-t", "--theme", choices=["light", "console"], default="light",
                         help="HTML theme: light (default) or console (dark)")
     parser.add_argument("--model", help="write model JSON to this path")
@@ -220,6 +283,14 @@ def main():
     parser.add_argument("--case-sensitive", action="store_true", help="case-sensitive search")
     parser.add_argument("--regex", action="store_true", help="treat search query as regex")
 
+    # Streaming options
+    parser.add_argument("--follow", "-F", action="store_true",
+                        help="stream/follow a session in real-time (like tail -f)")
+    parser.add_argument("--stream", action="store_true",
+                        help="alias for --follow")
+    parser.add_argument("--poll-interval", type=int, default=500,
+                        help="poll interval in ms for --follow mode (default: 500)")
+
     # Stats & Diff options
     parser.add_argument("--stats", action="store_true", help="show session statistics")
     parser.add_argument("--overview", action="store_true", help="cross-session overview (with --stats)")
@@ -230,6 +301,8 @@ def main():
 
     if args.search:
         _search_main(args)
+    elif args.follow or args.stream:
+        _stream_main(args)
     elif args.stats or args.overview:
         _stats_main(args)
     elif args.diff:

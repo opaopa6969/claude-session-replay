@@ -35,6 +35,8 @@ def _get_adapter(agent):
             "claude": "claude-log2model.py",
             "codex": "codex-log2model.py",
             "gemini": "gemini-log2model.py",
+            "aider": "aider-log2model.py",
+            "cursor": "cursor-log2model.py",
         }
         if agent not in filemap:
             raise ValueError(f"Unknown agent: {agent}")

@@ -529,6 +529,10 @@
                 grid-template-columns: 1fr;
             }
         }
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
@@ -795,9 +799,14 @@
                 .then(data => {
                     const list = document.getElementById('sessionsList');
                     list.innerHTML = '';
+                    const now = Date.now() / 1000;
                     data.sessions.forEach(session => {
                         const li = document.createElement('li');
-                        li.innerHTML = `<strong>${session.project || 'Unknown'}</strong>
+                        const isActive = session.mtime && (now - session.mtime) < 60;
+                        const liveBadge = isActive
+                            ? '<span style="display:inline-block;background:#3fb950;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;animation:livePulse 2s infinite;">LIVE</span>'
+                            : '';
+                        li.innerHTML = `<strong>${session.project || 'Unknown'}${liveBadge}</strong>
                             ${session.first_message ? `<div style="font-size: 12px; color: #999; margin-top: 4px;">"${session.first_message}${session.first_message.length >= 80 ? '...' : ''}"</div>` : ''}
                             <span class="session-date">${session.date_str} | ${session.size_str}</span>`;
                         li.addEventListener('click', () => selectSession(session, li));
@@ -1204,13 +1213,25 @@
                 console.error(err);
             });
 
-            // Update info
+            // Update info + Live Follow button
             document.getElementById('sessionInfo').innerHTML = `
                 <strong>Project:</strong> ${session.project || 'Unknown'}<br>
                 <strong>Date:</strong> ${session.date_str}<br>
                 <strong>Size:</strong> ${session.size_str}<br>
                 <strong>Path:</strong> <code style="font-size: 11px; word-break: break-all;">${session.path}</code>
             `;
+
+            // Check if session is active and show Live Follow button
+            fetch(`/api/session-active?path=${encodeURIComponent(session.path)}`)
+                .then(r => r.json())
+                .then(info => {
+                    const infoEl = document.getElementById('sessionInfo');
+                    if (info.active) {
+                        infoEl.innerHTML += `<br><button id="liveFollowBtn" style="margin-top:8px;padding:4px 14px;background:#3fb950;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">&#9679; Live Follow</button>`;
+                        document.getElementById('liveFollowBtn').addEventListener('click', () => startLiveFollow(session));
+                    }
+                })
+                .catch(() => {});
         }
 
         let lastConversionResult = null;
@@ -1990,6 +2011,81 @@
                     break;
                 }
             }
+        }
+
+        // ---------------------------------------------------------------
+        // Live Follow (SSE streaming)
+        // ---------------------------------------------------------------
+
+        let liveEventSource = null;
+
+        function startLiveFollow(session) {
+            stopLiveFollow();
+
+            // Show live panel
+            let panel = document.getElementById('livePanel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'livePanel';
+                panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:50vh;overflow-y:auto;background:#0d1117;color:#e6edf3;border-top:2px solid #3fb950;padding:16px;font-family:monospace;font-size:13px;z-index:9999;';
+                panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+                    + '<span style="color:#3fb950;font-weight:bold;">&#9679; Live Follow</span>'
+                    + '<button id="stopLiveBtn" style="padding:2px 10px;background:#da3633;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">Stop</button>'
+                    + '</div><div id="liveMessages"></div>';
+                document.body.appendChild(panel);
+                document.getElementById('stopLiveBtn').addEventListener('click', stopLiveFollow);
+            }
+            document.getElementById('liveMessages').innerHTML = '';
+            panel.style.display = 'block';
+
+            const url = `/api/stream/${selectedAgent}?path=${encodeURIComponent(session.path)}&poll=500`;
+            liveEventSource = new EventSource(url);
+
+            liveEventSource.onmessage = function(event) {
+                const entry = JSON.parse(event.data);
+                const msgEl = document.createElement('div');
+                msgEl.style.marginBottom = '8px';
+
+                if (entry.role === 'user') {
+                    msgEl.innerHTML = `<span style="color:#3fb950;font-weight:bold;">&gt; User [${entry._msg_num}]</span> <span style="color:#6e7681;">${(entry.timestamp || '').substring(0,19)}</span><br>${escapeHtml(entry.text || '')}`;
+                } else if (entry.role === 'assistant') {
+                    let html = `<span style="color:#79c0ff;font-weight:bold;">&lt; Assistant</span> <span style="color:#6e7681;">${(entry.timestamp || '').substring(0,19)}</span>`;
+                    if (entry.text) html += `<br>${escapeHtml(entry.text)}`;
+                    if (entry.tool_uses && entry.tool_uses.length) {
+                        entry.tool_uses.forEach(tu => {
+                            html += `<br><span style="color:#da7756;">[${escapeHtml(tu.name || 'Tool')}]</span>`;
+                        });
+                    }
+                    msgEl.innerHTML = html;
+                }
+
+                const container = document.getElementById('liveMessages');
+                container.appendChild(msgEl);
+                panel.scrollTop = panel.scrollHeight;
+            };
+
+            liveEventSource.onerror = function() {
+                const container = document.getElementById('liveMessages');
+                const el = document.createElement('div');
+                el.style.color = '#6e7681';
+                el.textContent = '(connection lost, retrying...)';
+                container.appendChild(el);
+            };
+        }
+
+        function stopLiveFollow() {
+            if (liveEventSource) {
+                liveEventSource.close();
+                liveEventSource = null;
+            }
+            const panel = document.getElementById('livePanel');
+            if (panel) panel.style.display = 'none';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // ---------------------------------------------------------------

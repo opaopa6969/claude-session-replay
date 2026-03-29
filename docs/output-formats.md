@@ -14,6 +14,8 @@ All formats are produced by the same renderer from the same common model. The fo
 | HTML | `html` | `.html` | No | None |
 | Player | `player` | `.html` | Yes | Browser |
 | Terminal | `terminal` | `.html` | Yes | Browser |
+| PDF | `pdf` | `.pdf` | No | Playwright |
+| Animated GIF | `gif` | `.gif` | No | Playwright + Pillow or FFmpeg |
 
 ## 2. Markdown (`md`)
 
@@ -240,3 +242,69 @@ Terminal tool output often contains ANSI escape sequences for colors and formatt
 |------|----------|
 | `strip` (default) | All ANSI escape sequences are removed |
 | `color` | Color sequences are converted to HTML `<span>` elements with appropriate CSS |
+
+## 8. PDF (`pdf`)
+
+Static PDF export. Renders the HTML output in a headless browser and prints to PDF via Playwright's `page.pdf()`.
+
+### Usage
+
+```bash
+python3 log-replay-pdf.py --agent claude session.jsonl -o output.pdf
+python3 log-replay.py --agent claude -f pdf -o output.pdf
+```
+
+### Options
+
+| Option | Flag | Default | Description |
+|--------|------|---------|-------------|
+| Page size | `--page-size` | A4 | PDF page format (A4, Letter, A3, etc.) |
+| Margin | `--margin` | 15 | Page margin in mm |
+| Header | `--header` | none | Header HTML content |
+| Footer | `--footer` | none | Footer HTML content |
+| Landscape | `--landscape` | off | Landscape orientation |
+| Source format | `-f` | html | HTML format used as source (html, player, terminal) |
+| Theme | `-t` | light | Color theme |
+
+### Dependencies
+
+- `playwright` (Python package)
+- Chromium browser via `python3 -m playwright install`
+
+## 9. Animated GIF (`gif`)
+
+Animated GIF export. Captures screenshots during interactive playback in a headless browser and assembles them into a GIF.
+
+### Usage
+
+```bash
+python3 log-replay-gif.py --agent claude session.jsonl -o output.gif
+python3 log-replay.py --agent claude -f gif -o output.gif
+```
+
+### Options
+
+| Option | Flag | Default | Description |
+|--------|------|---------|-------------|
+| Width | `--width` | 800 | Viewport width in pixels |
+| Height | `--height` | 600 | Viewport height in pixels |
+| FPS | `--fps` | 4 | Frames per second (2-5 recommended for GIF) |
+| Speed | `--speed` | 2.0 | Playback speed multiplier |
+| Timeout | `--timeout` | 300 | Max capture duration in seconds |
+| Source format | `-f` | player | Interactive format (player or terminal) |
+| Theme | `-t` | console | Color theme |
+
+### GIF assembly
+
+Two backends are supported (checked in order):
+
+1. **Pillow** (`pip install Pillow`) -- palette-optimized GIF, no external tools needed
+2. **FFmpeg** (fallback) -- uses two-pass palette generation for high-quality output
+
+At least one must be available.
+
+### Dependencies
+
+- `playwright` (Python package)
+- Chromium browser via `python3 -m playwright install`
+- `Pillow` (Python package) OR `ffmpeg` in PATH

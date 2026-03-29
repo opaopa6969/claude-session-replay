@@ -34,6 +34,8 @@ _ADAPTER_FILES = {
     "claude": "claude-log2model.py",
     "codex": "codex-log2model.py",
     "gemini": "gemini-log2model.py",
+    "aider": "aider-log2model.py",
+    "cursor": "cursor-log2model.py",
 }
 
 
@@ -53,6 +55,8 @@ def _build_common_model(session_path, agent):
         with open(session_path, "r", encoding="utf-8") as f:
             session_data = json.load(f)
         return adapter.build_model(session_data, session_path)
+    elif agent in ("codex", "aider", "cursor"):
+        return adapter.build_model(session_path)
     else:
         messages = adapter.parse_messages(session_path)
         return adapter.build_model(messages, session_path)
@@ -209,7 +213,7 @@ def _compute_one_session_stats(session_path, agent):
 def compute_overview_stats(agents=None):
     """Compute cross-session overview statistics using parallel processing."""
     if agents is None:
-        agents = ["claude", "codex", "gemini"]
+        agents = ["claude", "codex", "gemini", "aider", "cursor"]
 
     sessions = []
     for agent in agents:
@@ -597,7 +601,7 @@ def render_diff_html(diff):
 
 def main():
     parser = argparse.ArgumentParser(description="Session statistics and diff")
-    parser.add_argument("--agent", choices=["claude", "codex", "gemini"], default=None)
+    parser.add_argument("--agent", choices=["claude", "codex", "gemini", "aider", "cursor"], default=None)
 
     sub = parser.add_subparsers(dest="command")
 
@@ -638,7 +642,7 @@ def main():
             _print_session_stats(stats)
 
     elif args.command == "overview":
-        agents = [args.agent] if args.agent else ["claude", "codex", "gemini"]
+        agents = [args.agent] if args.agent else ["claude", "codex", "gemini", "aider", "cursor"]
         overview = compute_overview_stats(agents)
         _print_overview_stats(overview)
 

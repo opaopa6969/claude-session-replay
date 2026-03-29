@@ -6,10 +6,11 @@ import sys
 import json
 import subprocess
 import tempfile
+import time
 import importlib.util
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request, send_file, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_file, send_from_directory, Response
 
 # Import log2model modules
 def _import_module(name, filepath):
@@ -22,6 +23,8 @@ script_dir = Path(__file__).parent
 claude_log2model = _import_module("claude_log2model", str(script_dir / "claude-log2model.py"))
 codex_log2model = _import_module("codex_log2model", str(script_dir / "codex-log2model.py"))
 gemini_log2model = _import_module("gemini_log2model", str(script_dir / "gemini-log2model.py"))
+aider_log2model = _import_module("aider_log2model", str(script_dir / "aider-log2model.py"))
+cursor_log2model = _import_module("cursor_log2model", str(script_dir / "cursor-log2model.py"))
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
@@ -357,6 +360,10 @@ def get_sessions(agent):
             sessions = codex_log2model.discover_sessions()
         elif agent == "gemini":
             sessions = gemini_log2model.discover_sessions()
+        elif agent == "aider":
+            sessions = aider_log2model.discover_sessions()
+        elif agent == "cursor":
+            sessions = cursor_log2model.discover_sessions()
         else:
             return jsonify({"error": "Invalid agent"}), 400
 
@@ -369,6 +376,10 @@ def get_sessions(agent):
                 preview = codex_log2model._extract_preview(session["path"], use_event_msgs)
             elif agent == "gemini":
                 preview = gemini_log2model._extract_preview(session["path"])
+            elif agent == "aider":
+                preview = aider_log2model._extract_preview(session["path"])
+            elif agent == "cursor":
+                preview = cursor_log2model._extract_preview(session["path"])
 
             total = preview.get("user_count", 0) + preview.get("assistant_count", 0)
             if total > 0:
@@ -1027,6 +1038,113 @@ def api_diff():
         return jsonify(diff)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# SSE Streaming endpoint
+# ---------------------------------------------------------------------------
+
+# Lazy-import the stream module
+_stream_mod = None
+
+def _get_stream_mod():
+    global _stream_mod
+    if _stream_mod is None:
+        _stream_mod = _import_module("log_replay_stream", str(script_dir / "log-replay-stream.py"))
+    return _stream_mod
+
+
+@app.route('/api/stream/<agent>', methods=['GET'])
+def stream_session(agent):
+    """Server-Sent Events endpoint for live session streaming.
+
+    Query params:
+        path  — session file path (required)
+        poll  — poll interval in ms (default 500)
+    """
+    session_path = request.args.get('path', '')
+    poll_ms = int(request.args.get('poll', 500))
+
+    if not session_path or not os.path.isfile(session_path):
+        return jsonify({"error": "Invalid session path"}), 400
+
+    if agent not in ("claude", "codex", "gemini", "aider", "cursor"):
+        return jsonify({"error": "Invalid agent"}), 400
+
+    stream_mod = _get_stream_mod()
+
+    def generate():
+        adapter = stream_mod._get_adapter(agent)
+        parser = stream_mod._LINE_PARSERS.get(agent, stream_mod._parse_line_generic)
+        byte_offset = 0
+        msg_num = 0
+        poll_interval = poll_ms / 1000.0
+
+        while True:
+            try:
+                file_size = os.path.getsize(session_path)
+            except OSError:
+                time.sleep(poll_interval)
+                continue
+
+            if file_size < byte_offset:
+                byte_offset = 0
+                msg_num = 0
+
+            if file_size == byte_offset:
+                time.sleep(poll_interval)
+                # Send keepalive comment to prevent connection timeout
+                yield ": keepalive\n\n"
+                continue
+
+            try:
+                with open(session_path, "r", encoding="utf-8") as f:
+                    f.seek(byte_offset)
+                    for line in f:
+                        line = line.rstrip("\n\r")
+                        if not line:
+                            continue
+                        entry = parser(line, adapter)
+                        if entry is None:
+                            continue
+                        if entry.get("role") == "user":
+                            msg_num += 1
+                        entry["_msg_num"] = msg_num
+                        payload = json.dumps(entry, ensure_ascii=False)
+                        yield "data: {}\n\n".format(payload)
+                    byte_offset = f.tell()
+            except (OSError, UnicodeDecodeError):
+                pass
+
+            time.sleep(poll_interval)
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
+
+
+@app.route('/api/session-active', methods=['GET'])
+def check_session_active():
+    """Check if a session file is currently active (modified in last 60s)."""
+    session_path = request.args.get('path', '')
+    if not session_path:
+        return jsonify({"error": "path required"}), 400
+    try:
+        mtime = os.path.getmtime(session_path)
+        age = time.time() - mtime
+        return jsonify({
+            "active": age < 60,
+            "age_seconds": round(age, 1),
+            "mtime": mtime,
+        })
+    except OSError:
+        return jsonify({"active": False, "error": "File not found"}), 404
 
 
 if __name__ == '__main__':
