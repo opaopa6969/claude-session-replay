@@ -1,6 +1,236 @@
-[日本語版](ja/architecture.md)
+[日本語版](architecture-ja.md)
 
 # Architecture
+
+claude-session-replay uses a **three-stage pipeline** to decouple agent-specific log parsing from output rendering.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Stage 1 — Capture (Agent Adapters)](#stage-1--capture-agent-adapters)
+- [Stage 2 — Normalize (Common Model)](#stage-2--normalize-common-model)
+- [Stage 3 — Render](#stage-3--render)
+- [Entry Points](#entry-points)
+- [Renderer Tree](#renderer-tree)
+- [Dependency Model](#dependency-model)
+- [File Layout](#file-layout)
+
+---
+
+## Overview
+
+```
+Vendor logs (agent-specific format)
+  ├─ Claude Code   ~/.claude/projects/*/*.jsonl
+  ├─ Codex CLI     ~/.codex/sessions/**/*.jsonl
+  ├─ Gemini CLI    ~/.gemini/tmp/*/chats/session-*.json
+  ├─ Aider         .aider.chat.history.md
+  └─ Cursor        ~/.cursor/ (SQLite)
+         │
+         ▼  Stage 1: Capture (Agent Adapters)
+  *-log2model.py scripts
+         │
+         ▼  Stage 2: Normalize
+  Common Model JSON
+  {source, agent, messages[{role, text, tool_uses, tool_results, thinking, timestamp}]}
+         │
+         ▼  Stage 3: Render
+  Output
+  ├─ Markdown     (.md,   static)
+  ├─ HTML         (.html, static)
+  ├─ Player       (.html, interactive + Alibai Mode)
+  ├─ Terminal     (.html, interactive, Claude Code UI replica)
+  ├─ MP4          (Playwright + FFmpeg)
+  ├─ PDF          (Playwright)
+  └─ GIF          (Playwright + Pillow or FFmpeg)
+```
+
+---
+
+## Stage 1 — Capture (Agent Adapters)
+
+Each adapter is an independent Python script that follows the same logical interface:
+
+```python
+def parse_messages(input_path: str) -> list[dict]
+    """Read the log file; return raw message records."""
+
+def build_model(messages: list[dict], input_path: str) -> dict
+    """Transform raw messages into the common model dict."""
+
+def discover_sessions(filter: str = None) -> list[dict]
+    """Scan known filesystem locations; return session metadata list."""
+
+def select_session(sessions: list[dict]) -> str
+    """Interactive picker; return chosen file path."""
+```
+
+The contract is a convention, not an abstract base class.
+
+### Adapter scripts
+
+| Script | Agent | Input format |
+|--------|-------|-------------|
+| `claude-log2model.py` | Claude Code | JSONL, one record per line |
+| `codex-log2model.py` | OpenAI Codex CLI | JSONL |
+| `gemini-log2model.py` | Gemini CLI | JSON array |
+| `aider-log2model.py` | Aider | Markdown (`.aider.chat.history.md`) |
+| `cursor-log2model.py` | Cursor | SQLite databases |
+
+See [agents.md](agents.md) for per-adapter log format details.
+
+### Adding a new agent
+
+1. Create `<agent>-log2model.py` implementing the four-function contract.
+2. Register `--agent <name>` in `log-replay.py`.
+3. Register in `web_ui.py` (import + session discovery).
+4. No changes needed in the renderer.
+
+---
+
+## Stage 2 — Normalize (Common Model)
+
+All adapters output the same JSON structure. Full schema in [data-model.md](data-model.md).
+
+**Invariants**:
+- `role` is always `"user"` or `"assistant"` regardless of source agent terminology.
+- `timestamp` is ISO 8601, or empty string when unavailable.
+- `source` is a basename — never an absolute path.
+- Messages are in original chronological order.
+- A message is included only when at least one of `text`, `tool_uses`, `tool_results`, or `thinking` is non-empty.
+
+The common model is **agent-agnostic**. Any renderer consumes any model.
+
+---
+
+## Stage 3 — Render
+
+`log-model-renderer.py` reads the common model and produces output. Format selected via `-f`.
+
+| Format | Output type | Dependencies |
+|--------|------------|-------------|
+| `md` | Plain text | None |
+| `html` | Static HTML | None |
+| `player` | Self-contained HTML + JS | Browser |
+| `terminal` | Self-contained HTML + JS | Browser |
+
+Video/image renderers are separate scripts that render to HTML then drive a headless browser:
+
+| Script | Renderer used | Output |
+|--------|--------------|--------|
+| `log-replay-mp4.py` | `player` or `terminal` | MP4 |
+| `log-replay-pdf.py` | `html` or `player` | PDF |
+| `log-replay-gif.py` | `player` or `terminal` | GIF |
+
+---
+
+## Entry Points
+
+| Script | Role |
+|--------|------|
+| `log-replay.py` | CLI wrapper — selects adapter, pipes to renderer |
+| `web_ui.py` | Flask browser UI — session management + live conversion |
+| `log-model-renderer.py` | Direct renderer — reads common model, writes output |
+| `session-shipper.py` | Enterprise — ships sessions to OpenSearch (batch/watch) |
+| `session-stats.py` | Statistics reporter |
+
+---
+
+## Renderer Tree
+
+```
+log-model-renderer.py
+├── render_markdown(model)
+│   └── per message: heading + text + tool_uses + tool_results
+├── render_html(model, theme)
+│   └── inline CSS chat bubbles; no JS
+├── render_player(model, theme)
+│   ├── message stepper (Space / ← / →)
+│   ├── speed slider (0.25x–16x)
+│   ├── progress bar (click-to-seek)
+│   ├── range filter (--range)
+│   └── Alibai Mode
+│       ├── side clocks   (44×44 px per message)
+│       ├── fixed clock   (100×100 px, bottom-right)
+│       └── playback modes: Uniform / Real-time / Compressed
+└── render_terminal(model)
+    ├── Claude Code UI replica
+    ├── user prompt (> blue background)
+    ├── assistant bar (orange left border)
+    ├── tool blocks (Read/Write/Edit/Bash/Grep/Glob/Task)
+    └── spinner animation (● → ✓)
+```
+
+---
+
+## Dependency Model
+
+```
+Core (no external dependencies — Python 3.6+ stdlib only)
+  claude-log2model.py
+  codex-log2model.py
+  gemini-log2model.py
+  aider-log2model.py
+  cursor-log2model.py
+  log-model-renderer.py
+  log-replay.py
+
+Optional — Web UI
+  web_ui.py           → flask
+
+Optional — Headless recording
+  log-replay-mp4.py   → playwright, ffmpeg (system binary)
+  log-replay-pdf.py   → playwright
+  log-replay-gif.py   → playwright, pillow (or ffmpeg)
+```
+
+> **Note**: There is no `pyproject.toml`. Optional dependencies must be installed manually into a venv.
+
+Lazy imports ensure missing optional packages only cause errors at the feature boundary, not at startup.
+
+---
+
+## File Layout
+
+```
+claude-session-replay/
+├── log-replay.py              # CLI wrapper
+├── claude-log2model.py        # Capture: Claude Code
+├── codex-log2model.py         # Capture: Codex CLI
+├── gemini-log2model.py        # Capture: Gemini CLI
+├── aider-log2model.py         # Capture: Aider
+├── cursor-log2model.py        # Capture: Cursor
+├── log-model-renderer.py      # Render: md/html/player/terminal
+├── log-replay-mp4.py          # Render: MP4
+├── log-replay-pdf.py          # Render: PDF
+├── log-replay-gif.py          # Render: GIF
+├── web_ui.py                  # Flask Web UI
+├── session-shipper.py         # Enterprise shipper
+├── session-stats.py           # Statistics
+├── search_utils.py            # Shared session discovery helpers
+├── templates/index.html       # Web UI template
+├── docs/
+│   ├── architecture.md        # This document
+│   ├── architecture-ja.md     # 日本語版
+│   ├── getting-started.md
+│   ├── getting-started-ja.md
+│   ├── agents.md
+│   ├── agents-ja.md
+│   ├── renderers.md
+│   ├── renderers-ja.md
+│   └── data-model.md
+├── README.md                  # 日本語 README
+├── README-en.md               # English README
+└── CHANGELOG.md
+```
+
+---
+
+*Previous content below this line is retained for reference.*
+
+---
 
 ## 1. Top-level view
 
