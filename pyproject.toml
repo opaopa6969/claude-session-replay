@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claude-session-replay"
+version = "0.1.0"
+description = "Convert AI coding agent session logs into replays (Markdown, HTML, interactive player, video)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+web = ["flask>=2.0"]
+export = ["playwright>=1.0", "Pillow>=9.0"]
+all = ["flask>=2.0", "playwright>=1.0", "Pillow>=9.0"]
+
+[project.scripts]
+claude-session-replay = "log_replay:main"
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "*.py",
+    "templates/",
+    "tui/",
+]

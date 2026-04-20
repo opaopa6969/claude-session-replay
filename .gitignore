@@ -1,2 +1,6 @@
 generated/
 .venv/
+shipper-config.json
+shipped-sessions/
+__pycache__/
+*.pyc

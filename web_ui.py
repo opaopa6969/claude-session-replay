@@ -1149,4 +1149,4 @@ def check_session_active():
 
 if __name__ == '__main__':
     print("Starting Web UI on http://localhost:5000")
-    app.run(debug=True, host='localhost', port=5000)
+    app.run(debug=True, host=os.environ.get('HOST', 'localhost'), port=int(os.environ.get('PORT', 5000)))
