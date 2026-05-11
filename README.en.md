@@ -38,23 +38,12 @@ Claude Code, Codex, Gemini CLI, Aider, and Cursor each store session logs in inc
 
 ## Three-Stage Pipeline
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Stage 1: Capture (Agent Adapters)                      │
-│  Read each agent's log; produce the common model        │
-│  claude-log2model.py / codex-log2model.py / ...         │
-└────────────────────┬────────────────────────────────────┘
-                     │ common model JSON
-┌────────────────────▼────────────────────────────────────┐
-│  Stage 2: Normalize (Common Model)                      │
-│  {source, agent, messages[{role, text, tool_uses,       │
-│   tool_results, thinking, timestamp}]}                  │
-└────────────────────▼────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│  Stage 3: Render (log-model-renderer.py)                │
-│  md / html / player / terminal / MP4 / PDF / GIF        │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    S1["Stage 1: Capture (Agent Adapters)<br/>Read each agent's log; produce the common model<br/>claude-log2model.py / codex-log2model.py / ..."]
+    S2["Stage 2: Normalize (Common Model)<br/>{source, agent, messages[{role, text, tool_uses,<br/>tool_results, thinking, timestamp}]}"]
+    S3["Stage 3: Render (log-model-renderer.py)<br/>md / html / player / terminal / MP4 / PDF / GIF"]
+    S1 -- "common model JSON" --> S2 --> S3
 ```
 
 Each stage can be run independently. `log-replay.py` is a convenience wrapper that runs the full pipeline.

@@ -986,19 +986,31 @@ Web UI 起動時と `/api/sessions` リクエスト時に、5 種類すべての
 
 #### 7.2.1 Textual ウィジェット構成
 
-```
-LogReplayApp (App)
-├── Header
-├── Horizontal
-│   ├── Vertical (left panel, 30%)
-│   │   ├── Label "Agent"
-│   │   ├── OptionList (agent filter)
-│   │   └── Input (search box)
-│   └── Vertical (right panel, 70%)
-│       ├── ListView (session list)
-│       └── VerticalScroll
-│           └── Static (preview panel)
-└── Footer
+```mermaid
+flowchart TB
+    App["LogReplayApp (App)"]
+    H[Header]
+    HL[Horizontal]
+    LP["Vertical (left panel, 30%)"]
+    RP["Vertical (right panel, 70%)"]
+    L1["Label 'Agent'"]
+    OL["OptionList (agent filter)"]
+    Inp["Input (search box)"]
+    LV["ListView (session list)"]
+    VS[VerticalScroll]
+    Stat["Static (preview panel)"]
+    F[Footer]
+    App --> H
+    App --> HL
+    HL --> LP
+    HL --> RP
+    LP --> L1
+    LP --> OL
+    LP --> Inp
+    RP --> LV
+    RP --> VS
+    VS --> Stat
+    App --> F
 ```
 
 #### 7.2.2 アダプターロード

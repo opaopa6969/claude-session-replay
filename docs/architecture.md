@@ -21,30 +21,28 @@ claude-session-replay uses a **three-stage pipeline** to decouple agent-specific
 
 ## Overview
 
-```
-Vendor logs (agent-specific format)
-  ├─ Claude Code   ~/.claude/projects/*/*.jsonl
-  ├─ Codex CLI     ~/.codex/sessions/**/*.jsonl
-  ├─ Gemini CLI    ~/.gemini/tmp/*/chats/session-*.json
-  ├─ Aider         .aider.chat.history.md
-  └─ Cursor        ~/.cursor/ (SQLite)
-         │
-         ▼  Stage 1: Capture (Agent Adapters)
-  *-log2model.py scripts
-         │
-         ▼  Stage 2: Normalize
-  Common Model JSON
-  {source, agent, messages[{role, text, tool_uses, tool_results, thinking, timestamp}]}
-         │
-         ▼  Stage 3: Render
-  Output
-  ├─ Markdown     (.md,   static)
-  ├─ HTML         (.html, static)
-  ├─ Player       (.html, interactive + Alibai Mode)
-  ├─ Terminal     (.html, interactive, Claude Code UI replica)
-  ├─ MP4          (Playwright + FFmpeg)
-  ├─ PDF          (Playwright)
-  └─ GIF          (Playwright + Pillow or FFmpeg)
+```mermaid
+flowchart TB
+    subgraph Sources["Vendor logs (agent-specific format)"]
+        C1["Claude Code: ~/.claude/projects/*/*.jsonl"]
+        C2["Codex CLI: ~/.codex/sessions/**/*.jsonl"]
+        C3["Gemini CLI: ~/.gemini/tmp/*/chats/session-*.json"]
+        C4["Aider: .aider.chat.history.md"]
+        C5["Cursor: ~/.cursor/ (SQLite)"]
+    end
+    S1["Stage 1: Capture (Agent Adapters)<br/>*-log2model.py scripts"]
+    S2["Stage 2: Normalize<br/>Common Model JSON<br/>{source, agent, messages[{role, text, tool_uses, tool_results, thinking, timestamp}]}"]
+    S3["Stage 3: Render"]
+    subgraph Out["Output"]
+        O1["Markdown (.md, static)"]
+        O2["HTML (.html, static)"]
+        O3["Player (.html, interactive + Alibai Mode)"]
+        O4["Terminal (.html, interactive, Claude Code UI replica)"]
+        O5["MP4 (Playwright + FFmpeg)"]
+        O6["PDF (Playwright)"]
+        O7["GIF (Playwright + Pillow or FFmpeg)"]
+    end
+    Sources --> S1 --> S2 --> S3 --> Out
 ```
 
 ---
@@ -140,51 +138,40 @@ Video/image renderers are separate scripts that render to HTML then drive a head
 
 ## Renderer Tree
 
-```
-log-model-renderer.py
-├── render_markdown(model)
-│   └── per message: heading + text + tool_uses + tool_results
-├── render_html(model, theme)
-│   └── inline CSS chat bubbles; no JS
-├── render_player(model, theme)
-│   ├── message stepper (Space / ← / →)
-│   ├── speed slider (0.25x–16x)
-│   ├── progress bar (click-to-seek)
-│   ├── range filter (--range)
-│   └── Alibai Mode
-│       ├── side clocks   (44×44 px per message)
-│       ├── fixed clock   (100×100 px, bottom-right)
-│       └── playback modes: Uniform / Real-time / Compressed
-└── render_terminal(model)
-    ├── Claude Code UI replica
-    ├── user prompt (> blue background)
-    ├── assistant bar (orange left border)
-    ├── tool blocks (Read/Write/Edit/Bash/Grep/Glob/Task)
-    └── spinner animation (● → ✓)
+```mermaid
+flowchart TB
+    Renderer[log-model-renderer.py]
+    MD["render_markdown(model)<br/>per message: heading + text + tool_uses + tool_results"]
+    HTML["render_html(model, theme)<br/>inline CSS chat bubbles; no JS"]
+    Player["render_player(model, theme)"]
+    PStep["message stepper (Space / ← / →)"]
+    PSpeed["speed slider (0.25x–16x)"]
+    PBar["progress bar (click-to-seek)"]
+    PRange["range filter (--range)"]
+    Alibai["Alibai Mode<br/>side clocks (44×44 px per message)<br/>fixed clock (100×100 px, bottom-right)<br/>playback modes: Uniform / Real-time / Compressed"]
+    Term["render_terminal(model)<br/>Claude Code UI replica<br/>user prompt (&gt; blue background)<br/>assistant bar (orange left border)<br/>tool blocks (Read/Write/Edit/Bash/Grep/Glob/Task)<br/>spinner animation (● → ✓)"]
+    Renderer --> MD
+    Renderer --> HTML
+    Renderer --> Player
+    Renderer --> Term
+    Player --> PStep
+    Player --> PSpeed
+    Player --> PBar
+    Player --> PRange
+    Player --> Alibai
 ```
 
 ---
 
 ## Dependency Model
 
-```
-Core (no external dependencies — Python 3.6+ stdlib only)
-  claude-log2model.py
-  codex-log2model.py
-  gemini-log2model.py
-  aider-log2model.py
-  cursor-log2model.py
-  log-model-renderer.py
-  log-replay.py
-
-Optional — Web UI
-  web_ui.py           → flask
-
-Optional — Headless recording
-  log-replay-mp4.py   → playwright, ffmpeg (system binary)
-  log-replay-pdf.py   → playwright
-  log-replay-gif.py   → playwright, pillow (or ffmpeg)
-```
+| Category | Scripts | Dependencies |
+|---|---|---|
+| Core (no external dependencies — Python 3.6+ stdlib only) | `claude-log2model.py`, `codex-log2model.py`, `gemini-log2model.py`, `aider-log2model.py`, `cursor-log2model.py`, `log-model-renderer.py`, `log-replay.py` | (none) |
+| Optional — Web UI | `web_ui.py` | flask |
+| Optional — Headless recording (MP4) | `log-replay-mp4.py` | playwright, ffmpeg (system binary) |
+| Optional — Headless recording (PDF) | `log-replay-pdf.py` | playwright |
+| Optional — Headless recording (GIF) | `log-replay-gif.py` | playwright, pillow (or ffmpeg) |
 
 > **Note**: There is no `pyproject.toml`. Optional dependencies must be installed manually into a venv.
 

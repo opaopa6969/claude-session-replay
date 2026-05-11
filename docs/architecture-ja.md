@@ -21,30 +21,28 @@ claude-session-replay は **3段パイプライン（capture → normalize → r
 
 ## 概要
 
-```
-ベンダーログ（エージェント固有形式）
-  ├─ Claude Code   ~/.claude/projects/*/*.jsonl
-  ├─ Codex CLI     ~/.codex/sessions/**/*.jsonl
-  ├─ Gemini CLI    ~/.gemini/tmp/*/chats/session-*.json
-  ├─ Aider         .aider.chat.history.md
-  └─ Cursor        ~/.cursor/ (SQLite)
-         │
-         ▼  Stage 1: Capture（エージェントアダプター）
-  *-log2model.py スクリプト群
-         │
-         ▼  Stage 2: Normalize
-  共通モデル JSON
-  {source, agent, messages[{role, text, tool_uses, tool_results, thinking, timestamp}]}
-         │
-         ▼  Stage 3: Render
-  出力
-  ├─ Markdown     (.md,   静的)
-  ├─ HTML         (.html, 静的)
-  ├─ Player       (.html, インタラクティブ + Alibai Mode)
-  ├─ Terminal     (.html, インタラクティブ、Claude Code UI 再現)
-  ├─ MP4          (Playwright + FFmpeg)
-  ├─ PDF          (Playwright)
-  └─ GIF          (Playwright + Pillow または FFmpeg)
+```mermaid
+flowchart TB
+    subgraph Sources["ベンダーログ（エージェント固有形式）"]
+        C1["Claude Code: ~/.claude/projects/*/*.jsonl"]
+        C2["Codex CLI: ~/.codex/sessions/**/*.jsonl"]
+        C3["Gemini CLI: ~/.gemini/tmp/*/chats/session-*.json"]
+        C4["Aider: .aider.chat.history.md"]
+        C5["Cursor: ~/.cursor/ (SQLite)"]
+    end
+    S1["Stage 1: Capture（エージェントアダプター）<br/>*-log2model.py スクリプト群"]
+    S2["Stage 2: Normalize<br/>共通モデル JSON<br/>{source, agent, messages[{role, text, tool_uses, tool_results, thinking, timestamp}]}"]
+    S3["Stage 3: Render"]
+    subgraph Out["出力"]
+        O1["Markdown (.md, 静的)"]
+        O2["HTML (.html, 静的)"]
+        O3["Player (.html, インタラクティブ + Alibai Mode)"]
+        O4["Terminal (.html, インタラクティブ、Claude Code UI 再現)"]
+        O5["MP4 (Playwright + FFmpeg)"]
+        O6["PDF (Playwright)"]
+        O7["GIF (Playwright + Pillow または FFmpeg)"]
+    end
+    Sources --> S1 --> S2 --> S3 --> Out
 ```
 
 ---
@@ -140,51 +138,40 @@ def select_session(sessions: list[dict]) -> str
 
 ## レンダラーツリー
 
-```
-log-model-renderer.py
-├── render_markdown(model)
-│   └── メッセージごと: 見出し + テキスト + tool_uses + tool_results
-├── render_html(model, theme)
-│   └── インライン CSS チャット吹き出し; JS なし
-├── render_player(model, theme)
-│   ├── メッセージステッパー（Space / ← / →）
-│   ├── 速度スライダー（0.25x〜16x）
-│   ├── プログレスバー（クリックでシーク）
-│   ├── 範囲フィルター（--range）
-│   └── Alibai Mode
-│       ├── サイド時計（メッセージごとに 44×44 px）
-│       ├── 固定時計（100×100 px、右下固定）
-│       └── 再生モード: Uniform / Real-time / Compressed
-└── render_terminal(model)
-    ├── Claude Code UI 再現
-    ├── ユーザープロンプト（> 青背景）
-    ├── アシスタントバー（オレンジの左ボーダー）
-    ├── ツールブロック（Read/Write/Edit/Bash/Grep/Glob/Task）
-    └── スピナーアニメーション（● → ✓）
+```mermaid
+flowchart TB
+    Renderer[log-model-renderer.py]
+    MD["render_markdown(model)<br/>メッセージごと: 見出し + テキスト + tool_uses + tool_results"]
+    HTML["render_html(model, theme)<br/>インライン CSS チャット吹き出し; JS なし"]
+    Player["render_player(model, theme)"]
+    PStep["メッセージステッパー（Space / ← / →）"]
+    PSpeed["速度スライダー（0.25x〜16x）"]
+    PBar["プログレスバー（クリックでシーク）"]
+    PRange["範囲フィルター（--range）"]
+    Alibai["Alibai Mode<br/>サイド時計（44×44 px）<br/>固定時計（100×100 px、右下）<br/>再生モード: Uniform / Real-time / Compressed"]
+    Term["render_terminal(model)<br/>Claude Code UI 再現<br/>ユーザープロンプト（&gt; 青背景）<br/>アシスタントバー（オレンジ左ボーダー）<br/>ツールブロック（Read/Write/Edit/Bash/Grep/Glob/Task）<br/>スピナーアニメーション（● → ✓）"]
+    Renderer --> MD
+    Renderer --> HTML
+    Renderer --> Player
+    Renderer --> Term
+    Player --> PStep
+    Player --> PSpeed
+    Player --> PBar
+    Player --> PRange
+    Player --> Alibai
 ```
 
 ---
 
 ## 依存関係モデル
 
-```
-コア（外部依存なし — Python 3.6+ 標準ライブラリのみ）
-  claude-log2model.py
-  codex-log2model.py
-  gemini-log2model.py
-  aider-log2model.py
-  cursor-log2model.py
-  log-model-renderer.py
-  log-replay.py
-
-オプション — Web UI
-  web_ui.py           → flask
-
-オプション — ヘッドレス録画
-  log-replay-mp4.py   → playwright、ffmpeg（システムバイナリ）
-  log-replay-pdf.py   → playwright
-  log-replay-gif.py   → playwright、pillow（または ffmpeg）
-```
+| カテゴリ | スクリプト | 依存 |
+|---|---|---|
+| コア (外部依存なし — Python 3.6+ 標準ライブラリのみ) | `claude-log2model.py`, `codex-log2model.py`, `gemini-log2model.py`, `aider-log2model.py`, `cursor-log2model.py`, `log-model-renderer.py`, `log-replay.py` | (none) |
+| オプション — Web UI | `web_ui.py` | flask |
+| オプション — ヘッドレス録画 (MP4) | `log-replay-mp4.py` | playwright、ffmpeg (システムバイナリ) |
+| オプション — ヘッドレス録画 (PDF) | `log-replay-pdf.py` | playwright |
+| オプション — ヘッドレス録画 (GIF) | `log-replay-gif.py` | playwright、pillow (または ffmpeg) |
 
 > **注意**: `pyproject.toml` は存在しない。オプション依存は venv 内に手動でインストールする必要がある。
 

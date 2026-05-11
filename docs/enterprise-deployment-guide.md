@@ -6,37 +6,27 @@ This guide covers deploying session-shipper in an enterprise environment with Op
 
 ## 1. Architecture overview
 
-```text
-Developer Workstation (Windows/WSL2, Linux, macOS)
-  ├─ Claude Code / Codex CLI / Gemini CLI
-  │     └─ writes session logs (~/.claude/projects/*/*.jsonl)
-  │
-  └─ session-shipper.py watch (daemon)
-        ├─ monitors session log directories
-        ├─ parses new messages in real-time
-        ├─ applies: redaction → scope filter → security analysis
-        └─ ships to ──────────────────────────────────────────┐
-                                                               │
-                                                               ▼
-                                               ┌──────────────────────┐
-                                               │  OpenSearch Cluster   │
-                                               │  (corporate / SaaS)  │
-                                               │                      │
-                                               │  ├─ agent-sessions-* │
-                                               │  ├─ Security Plugin  │
-                                               │  │  (SAML/OIDC/DLS) │
-                                               │  └─ ISM Policies     │
-                                               └──────────┬───────────┘
-                                                           │
-                                          ┌────────────────┼────────────────┐
-                                          ▼                ▼                ▼
-                                   OpenSearch         Alerting         Compliance
-                                   Dashboards         Plugin           Reports
-                                   (Kibana-like)      (Slack/email)
-                                          │
-                                          ▼
-                                   session-shipper.py lookup
-                                   (OpenSearch result → local Player)
+```mermaid
+flowchart TB
+    subgraph Dev["Developer Workstation (Windows/WSL2, Linux, macOS)"]
+        Agents["Claude Code / Codex CLI / Gemini CLI<br/>writes session logs (~/.claude/projects/*/*.jsonl)"]
+        Shipper["session-shipper.py watch (daemon)<br/>monitors session log directories<br/>parses new messages in real-time<br/>applies: redaction → scope filter → security analysis"]
+        Agents --> Shipper
+    end
+    subgraph OS["OpenSearch Cluster (corporate / SaaS)"]
+        Idx["agent-sessions-*"]
+        Sec["Security Plugin<br/>(SAML/OIDC/DLS)"]
+        ISM["ISM Policies"]
+    end
+    Dash["OpenSearch Dashboards<br/>(Kibana-like)"]
+    Alert["Alerting Plugin<br/>(Slack/email)"]
+    Comp["Compliance Reports"]
+    Lookup["session-shipper.py lookup<br/>(OpenSearch result → local Player)"]
+    Shipper -- ships to --> Idx
+    OS --> Dash
+    OS --> Alert
+    OS --> Comp
+    Dash --> Lookup
 ```
 
 ## 2. Prerequisites

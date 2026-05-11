@@ -11,24 +11,31 @@
 
 ## アーキテクチャ
 
-```
-Agent Log (.jsonl)
-  ├→ Adapter → Common Model → Renderer  (既存)
-  └→ Session Shipper                      (新規)
-       ├─ Envelope (identity + session_id)
-       ├─ Scope filter
-       ├─ Redaction engine
-       ├─ Security analysis
-       └─ Transport → OpenSearch / File export
-                          │
-                          ↓
-                    OpenSearch (central)
-                          │
-                          ↓
-                    Search UI / API
-                          │
-                          ↓ (session_id + message_index)
-                    Local session lookup → Player再生
+```mermaid
+flowchart TB
+    Log["Agent Log (.jsonl)"]
+    Adapter[Adapter]
+    CM[Common Model]
+    Renderer[Renderer]
+    Shipper["Session Shipper (新規)"]
+    Env["Envelope (identity + session_id)"]
+    Scope[Scope filter]
+    Redact[Redaction engine]
+    Sec[Security analysis]
+    Trans[Transport → OpenSearch / File export]
+    OS["OpenSearch (central)"]
+    SUI[Search UI / API]
+    Lookup["Local session lookup → Player再生"]
+
+    Log --> Adapter --> CM --> Renderer
+    Log --> Shipper
+    Shipper --> Env
+    Shipper --> Scope
+    Shipper --> Redact
+    Shipper --> Sec
+    Shipper --> Trans
+    Trans --> OS --> SUI
+    SUI -- "session_id + message_index" --> Lookup
 ```
 
 ## ファイル構成
