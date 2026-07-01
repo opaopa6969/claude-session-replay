@@ -10,6 +10,7 @@ Record, convert, and replay AI coding agent sessions through a **three-stage pip
 
 ## Table of Contents
 
+- [Screenshots / Demo](#screenshots--demo)
 - [Why it exists](#why-it-exists)
 - [Three-Stage Pipeline](#three-stage-pipeline)
 - [Supported Agents](#supported-agents)
@@ -22,6 +23,24 @@ Record, convert, and replay AI coding agent sessions through a **three-stage pip
 - [Requirements](#requirements)
 - [Notes](#notes)
 - [Documentation](#documentation)
+
+---
+
+## Screenshots / Demo
+
+### Web UI
+
+A single-page Web UI for selecting, converting, previewing, and downloading sessions.
+
+![Web UI screenshot](docs/media/screenshot1.png)
+
+### Terminal player (demo)
+
+A Codex CLI session replayed with the Terminal renderer (animated GIF).
+
+![Terminal player demo GIF](docs/media/codex-terminal-1-35-10s.gif)
+
+High-quality video: [codex-terminal-1-35.mp4](docs/media/codex-terminal-1-35.mp4)
 
 ---
 
