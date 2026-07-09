@@ -109,7 +109,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 # 追加インストール不要 — 標準ライブラリのみで動作
 ```
 
-> **Note**: `pyproject.toml` は存在しない。パッケージとして公開されておらず、venv + requirements なし の直接実行が前提。
+> **Note**: `pyproject.toml`（hatchling ビルド、`[project.scripts]`・`optional-dependencies` 定義）が存在する。基本 CLI は標準ライブラリのみで動くため追加インストールは不要だが、`pip install -e .`（オプション依存は `pip install -e ".[web]"` など）でパッケージとしてインストールすることもできる。PyPI へは未公開。
 
 ### Web UI + MP4 / GIF / PDF 対応
 
@@ -230,7 +230,7 @@ python3 web_ui.py
 
 | 機能 | 必須 |
 |-----|-----|
-| 基本 CLI | Python 3.6+、外部依存なし |
+| 基本 CLI | Python 3.9+、外部依存なし |
 | Web UI | `flask`, `playwright` |
 | MP4 出力 | `playwright`, `ffmpeg` |
 | GIF 出力 | `playwright`, `pillow`（または `ffmpeg`） |
@@ -240,7 +240,7 @@ python3 web_ui.py
 
 ## 注意事項
 
-- **`pyproject.toml` なし**: このプロジェクトは PyPI に公開されていない。venv を使った直接実行が前提。
+- **`pyproject.toml` あり**: hatchling ビルド・`[project.scripts]`・`optional-dependencies` を定義しており、`pip install -e .` でのインストールに対応する（PyPI へは未公開）。venv での直接実行も引き続き可能。
 - **`session-shipper.py` のリダクション**: `session-shipper.py` の個人情報リダクション機能（`redact_pii` フラグ）は現時点で十分にテストされていない。本番環境での使用前に動作確認を推奨する。
 
 ---

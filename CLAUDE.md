@@ -53,7 +53,13 @@ source .venv/bin/activate
 
 ### Test
 
-No formal test suite. Verify manually:
+Pytest suite in `tests/` (`test_claude_adapter.py`, `test_renderer.py`, `test_search_utils.py`, plus `conftest.py` and `fixtures/`), configured via `[tool.pytest.ini_options]` in `pyproject.toml` and run in CI (`.github/workflows/ci.yml`, Python 3.9 / 3.11):
+
+```bash
+pip install pytest && pytest
+```
+
+Manual smoke test:
 
 ```bash
 # Smoke test: convert and render a Claude session
@@ -79,9 +85,9 @@ python3 log-replay.py --agent claude -f player -o /tmp/test.html
 
 ## Key conventions
 
-- **Python 3.6+** — no type hints beyond what 3.6 supports
+- **Python 3.9+** — `requires-python = ">=3.9"` in `pyproject.toml`; CI tests on 3.9 / 3.11
 - **Standard library only** for core functionality — Flask/Playwright are optional
-- **No package manager** (no pyproject.toml, no requirements.txt) — deps are few and documented in README
+- **`pyproject.toml` present** (hatchling build, `[project.scripts]`, `optional-dependencies`) — core needs no extra deps; optional extras via `pip install -e ".[web]"` etc. Not published to PyPI.
 - **Self-contained HTML output** — all CSS/JS embedded, no external resources
 - **Filenames use hyphens** (`claude-log2model.py`), not underscores
 
