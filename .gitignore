@@ -4,3 +4,12 @@ shipper-config.json
 shipped-sessions/
 __pycache__/
 *.pyc
+node_modules/
+target/
+build/
+out/
+dist/
+.gradle/
+.next/
+.nuxt/
+bower_components/
