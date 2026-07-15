@@ -1130,7 +1130,7 @@ def export_all_zip():
             except RuntimeError as e:
                 # playwright not installed — ship the zip without the PDF
                 zf.writestr("PDF_SKIPPED.txt", str(e))
-            zf.write(src, arcname=f"jsonl/{src.name}")
+            zf.write(src, arcname=src.name)
         buf.seek(0)
         return send_file(buf, mimetype="application/zip",
                          as_attachment=True, download_name=f"{stem}_all.zip")
