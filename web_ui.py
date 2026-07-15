@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Web UI for Claude Session Replay."""
 
+import io
 import os
 import sys
 import json
 import subprocess
 import tempfile
 import time
+import zipfile
 import importlib.util
 from pathlib import Path
 from datetime import datetime
@@ -936,6 +938,206 @@ def convert():
 
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Conversion timeout"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+LOG2MODEL_SCRIPTS = {
+    "claude": "claude-log2model.py",
+    "codex": "codex-log2model.py",
+    "gemini": "gemini-log2model.py",
+}
+
+
+def _run_pipeline(agent, session_path, format_type, theme=None, range_filter=None,
+                  truncate_length=None, alibai_time=None):
+    """Run log2model + renderer and return the rendered output as a string.
+
+    Raises RuntimeError with a user-facing message on failure.
+    """
+    if agent not in LOG2MODEL_SCRIPTS:
+        raise RuntimeError("Invalid agent")
+
+    fd, model_path = tempfile.mkstemp(prefix="log-model-", suffix=".json")
+    os.close(fd)
+    try:
+        log_cmd = [sys.executable, str(script_dir / LOG2MODEL_SCRIPTS[agent]), session_path, "-o", model_path]
+        result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            raise RuntimeError(f"Log conversion failed: {result.stderr}")
+
+        if alibai_time and format_type == "player":
+            _apply_alibai_offset(model_path, alibai_time)
+
+        fd, render_output_path = tempfile.mkstemp(suffix=f".{format_type}")
+        os.close(fd)
+        try:
+            render_cmd = [
+                sys.executable, str(script_dir / "log-model-renderer.py"), model_path,
+                "-f", format_type,
+                "-t", theme or "light",
+                "-o", render_output_path,
+            ]
+            if range_filter:
+                render_cmd.extend(["-r", range_filter])
+            render_cmd.extend(["--truncate", str(truncate_length) if truncate_length is not None else "0"])
+
+            result = subprocess.run(render_cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode != 0:
+                raise RuntimeError(f"Rendering failed: {result.stderr}")
+
+            with open(render_output_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        finally:
+            try:
+                os.remove(render_output_path)
+            except OSError:
+                pass
+    finally:
+        try:
+            os.remove(model_path)
+        except OSError:
+            pass
+
+
+def _export_params(data):
+    """Extract common export parameters from a request payload."""
+    return {
+        "agent": data.get("agent"),
+        "session_path": data.get("session_path"),
+        "theme": data.get("theme"),
+        "range_filter": data.get("range"),
+        "truncate_length": data.get("truncate_length"),
+        "alibai_time": data.get("alibai_time"),
+    }
+
+
+def _html_to_pdf_bytes(html_content):
+    """Render an HTML string to PDF bytes with headless Chromium.
+
+    Raises RuntimeError if playwright is not installed.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        raise RuntimeError("playwright is not installed. Run: pip install playwright && python -m playwright install chromium")
+
+    fd, html_path = tempfile.mkstemp(prefix="log-replay-pdf-", suffix=".html")
+    os.close(fd)
+    fd, pdf_path = tempfile.mkstemp(prefix="log-replay-pdf-", suffix=".pdf")
+    os.close(fd)
+    try:
+        Path(html_path).write_text(html_content, encoding='utf-8')
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=True,
+                chromium_sandbox=False,
+                args=["--no-sandbox", "--disable-setuid-sandbox"],
+            )
+            page = browser.new_page()
+            page.goto(f"file://{html_path}")
+            page.wait_for_load_state("networkidle")
+            page.pdf(
+                path=pdf_path,
+                format="A4",
+                margin={"top": "15mm", "right": "15mm", "bottom": "15mm", "left": "15mm"},
+                print_background=True,
+            )
+            browser.close()
+        return Path(pdf_path).read_bytes()
+    finally:
+        for tmp in (html_path, pdf_path):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+@app.route('/api/export-pdf', methods=['POST'])
+def export_pdf():
+    """Render session to PDF (HTML render + headless Chromium)."""
+    try:
+        p = _export_params(request.json)
+        if not p["agent"] or not p["session_path"]:
+            return jsonify({"error": "Missing required parameters"}), 400
+
+        html_content = _run_pipeline(p["agent"], p["session_path"], "html",
+                                     p["theme"], p["range_filter"], p["truncate_length"])
+        pdf_bytes = _html_to_pdf_bytes(html_content)
+
+        stem = Path(p["session_path"]).stem
+        return send_file(io.BytesIO(pdf_bytes), mimetype="application/pdf",
+                         as_attachment=True, download_name=f"{stem}.pdf")
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Conversion timeout"}), 500
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/export-jsonl-zip', methods=['POST'])
+def export_jsonl_zip():
+    """Zip the source session log file and return it."""
+    try:
+        session_path = (request.json or {}).get("session_path")
+        if not session_path:
+            return jsonify({"error": "Missing required parameters"}), 400
+        src = Path(session_path)
+        if not src.is_file():
+            return jsonify({"error": f"Session file not found: {session_path}"}), 404
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(src, arcname=src.name)
+        buf.seek(0)
+        return send_file(buf, mimetype="application/zip",
+                         as_attachment=True, download_name=f"{src.stem}.jsonl.zip")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/export-all-zip', methods=['POST'])
+def export_all_zip():
+    """Render md/html/player/terminal and bundle them with the source log into one zip."""
+    try:
+        p = _export_params(request.json)
+        if not p["agent"] or not p["session_path"]:
+            return jsonify({"error": "Missing required parameters"}), 400
+        src = Path(p["session_path"])
+        if not src.is_file():
+            return jsonify({"error": f"Session file not found: {p['session_path']}"}), 404
+
+        stem = src.stem
+        outputs = [
+            ("md", f"{stem}.md"),
+            ("html", f"{stem}.html"),
+            ("player", f"{stem}.player.html"),
+            ("terminal", f"{stem}.terminal.txt"),
+        ]
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            html_content = None
+            for fmt, arcname in outputs:
+                content = _run_pipeline(p["agent"], p["session_path"], fmt,
+                                        p["theme"], p["range_filter"],
+                                        p["truncate_length"], p["alibai_time"])
+                zf.writestr(arcname, content)
+                if fmt == "html":
+                    html_content = content
+            try:
+                zf.writestr(f"{stem}.pdf", _html_to_pdf_bytes(html_content))
+            except RuntimeError as e:
+                # playwright not installed — ship the zip without the PDF
+                zf.writestr("PDF_SKIPPED.txt", str(e))
+            zf.write(src, arcname=f"jsonl/{src.name}")
+        buf.seek(0)
+        return send_file(buf, mimetype="application/zip",
+                         as_attachment=True, download_name=f"{stem}_all.zip")
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Conversion timeout"}), 500
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
