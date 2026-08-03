@@ -2,7 +2,7 @@
 
 ## Project overview
 
-claude-session-replay converts AI coding agent session logs (Claude Code, Codex CLI, Gemini CLI) into a common JSON model and renders them as Markdown, HTML, interactive player, or terminal-style player. Optionally exports to MP4 video.
+claude-session-replay converts AI coding agent session logs (Claude Code, Codex CLI, Gemini CLI, Aider, and Cursor) into a common JSON model and renders them as Markdown, HTML, interactive player, or terminal-style player. It can also export to MP4, PDF, or GIF.
 
 ## Architecture
 
@@ -75,6 +75,8 @@ python3 log-replay.py --agent claude -f player -o /tmp/test.html
 | `claude-log2model.py` | Claude Code log → common model | ~332 |
 | `codex-log2model.py` | Codex CLI log → common model | ~397 |
 | `gemini-log2model.py` | Gemini CLI log → common model | ~223 |
+| `aider-log2model.py` | Aider chat history → common model | ~446 |
+| `cursor-log2model.py` | Cursor session data → common model | ~452 |
 | `log-model-renderer.py` | Common model → md/html/player/terminal | ~2580 |
 | `log-replay-mp4.py` | HTML → MP4 via Playwright + FFmpeg | ~160 |
 | `log-replay-pdf.py` | HTML → PDF via Playwright | ~130 |
@@ -96,7 +98,7 @@ python3 log-replay.py --agent claude -f player -o /tmp/test.html
 ```json
 {
   "source": "filename.jsonl",
-  "agent": "claude" | "codex" | "gemini",
+  "agent": "claude" | "codex" | "gemini" | "aider" | "cursor",
   "messages": [{
     "role": "user" | "assistant",
     "text": "",

@@ -167,7 +167,7 @@ flowchart TB
 
 | Category | Scripts | Dependencies |
 |---|---|---|
-| Core (no external dependencies — Python 3.6+ stdlib only) | `claude-log2model.py`, `codex-log2model.py`, `gemini-log2model.py`, `aider-log2model.py`, `cursor-log2model.py`, `log-model-renderer.py`, `log-replay.py` | (none) |
+| Core (no external dependencies — Python 3.9+ stdlib only) | `claude-log2model.py`, `codex-log2model.py`, `gemini-log2model.py`, `aider-log2model.py`, `cursor-log2model.py`, `log-model-renderer.py`, `log-replay.py` | (none) |
 | Optional — Web UI | `web_ui.py` | flask |
 | Optional — Headless recording (MP4) | `log-replay-mp4.py` | playwright, ffmpeg (system binary) |
 | Optional — Headless recording (PDF) | `log-replay-pdf.py` | playwright |
@@ -432,11 +432,11 @@ Gemini CLI
 
 ```text
 Core (no external dependencies):
-  claude-log2model.py    — Python 3.6+ standard library
-  codex-log2model.py     — Python 3.6+ standard library
-  gemini-log2model.py    — Python 3.6+ standard library
-  log-model-renderer.py  — Python 3.6+ standard library
-  log-replay.py          — Python 3.6+ standard library
+  claude-log2model.py    — Python 3.9+ standard library
+  codex-log2model.py     — Python 3.9+ standard library
+  gemini-log2model.py    — Python 3.9+ standard library
+  log-model-renderer.py  — Python 3.9+ standard library
+  log-replay.py          — Python 3.9+ standard library
 
 Web UI (optional):
   web_ui.py              — flask

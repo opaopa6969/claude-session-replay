@@ -49,7 +49,7 @@
 ## Phase 6 — Quality & polish
 1. ANSI color rendering mode (`--ansi-mode color`)
 2. ~~Thinking block display (collapsible)~~
-3. Content truncation (`--truncate-length`)
+3. Content truncation (`--truncate`)
 4. Table rendering in terminal format
 5. Sub-agent message handling
 

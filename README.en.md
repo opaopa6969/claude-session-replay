@@ -249,7 +249,7 @@ Speed slider: 0.25x–16x.
 
 | Feature | Requires |
 |---------|---------|
-| Basic CLI | Python 3.6+, no external packages |
+| Basic CLI | Python 3.9+, no external packages |
 | Web UI | `flask`, `playwright` |
 | MP4 output | `playwright`, `ffmpeg` |
 | GIF output | `playwright`, `pillow` (or `ffmpeg`) |
@@ -259,7 +259,7 @@ Speed slider: 0.25x–16x.
 
 ## Notes
 
-- **No `pyproject.toml`**: This project is not published to PyPI. Run scripts directly inside a venv — no `pip install claude-session-replay`.
+- **`pyproject.toml` is present**: Editable installation is supported with `pip install -e .`; the project is not published to PyPI.
 - **`session-shipper.py` redaction**: The `redact_pii` flag in `session-shipper.py` has not been thoroughly tested. Verify behavior before using in production environments.
 
 ---

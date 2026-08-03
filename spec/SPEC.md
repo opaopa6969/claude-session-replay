@@ -1203,7 +1203,6 @@ claude-session-replay = "log_replay:main"
 
 **最小要件: Python 3.9+**
 
-CLAUDE.md 記載の "Python 3.6+" は歴史的記述であり、
 `pyproject.toml` が `>=3.9` を要求するため 3.9 以上を要件とする。
 
 型ヒントは簡易なものに留め、3.9 互換の構文を使用する。

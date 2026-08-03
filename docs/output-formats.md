@@ -220,7 +220,7 @@ These options apply across all formats:
 | Output | `-o`, `--output` | file path | auto-generated | Output file path |
 | Range | `--range` | e.g., `1-50,53-` | all | Message range filter |
 | ANSI mode | `--ansi-mode` | strip, color | strip | ANSI escape handling |
-| Truncate | `--truncate-length` | integer | 0 (disabled) | Max content length per block |
+| Truncate | `--truncate` | integer | 500 (0 = disabled) | Max content length per block |
 
 ### Range specification syntax
 
