@@ -30,7 +30,7 @@ The common model is a JSON document that represents a single session transcript 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `source` | string | yes | Original filename (basename only, no path) |
-| `agent` | string | yes | Agent identifier: `"claude"`, `"codex"`, or `"gemini"` |
+| `agent` | string | yes | Agent identifier: `"claude"`, `"codex"`, `"gemini"`, `"aider"`, or `"cursor"` |
 | `messages` | array | yes | Ordered array of message objects |
 
 ### Invariants

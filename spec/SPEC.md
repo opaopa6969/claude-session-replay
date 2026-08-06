@@ -947,7 +947,7 @@ session-shipper.py [--config PATH] <subcommand> [OPTIONS]
 
 ## 7. UI (Web UI and TUI)
 
-### 7.1 Web UI (web_ui.py — 1152 行)
+### 7.1 Web UI (web_ui.py — 1354 行)
 
 #### 7.1.1 構成
 
@@ -1618,7 +1618,7 @@ python3 session-shipper.py decrypt \
 | `log-replay-mp4.py` | MP4 エクスポート | ~160 |
 | `log-replay-pdf.py` | PDF エクスポート | ~142 |
 | `log-replay-gif.py` | GIF エクスポート | ~248 |
-| `web_ui.py` | Flask Web UI | ~1152 |
+| `web_ui.py` | Flask Web UI | ~1354 |
 | `log_replay_tui.py` | Textual TUI | ~727 |
 | `session-shipper.py` | Session Shipper | ~1596 |
 | `session-stats.py` | 統計・差分エンジン | ~668 |
