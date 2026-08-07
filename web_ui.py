@@ -344,6 +344,22 @@ def _apply_alibai_offset(model_path, alibai_time):
         json.dump(model, f)
 
 
+@app.route('/healthz', methods=['GET'])
+def healthz():
+    """Liveness probe for external monitoring.
+
+    Intentionally unauthenticated, so it must never expose session log
+    contents, file paths, or any internal configuration. Body is a fixed
+    literal.
+    """
+    return Response(
+        'ok\n',
+        status=200,
+        mimetype='text/plain',
+        headers={'Cache-Control': 'no-store'},
+    )
+
+
 @app.route('/')
 def index():
     """Render main page."""
