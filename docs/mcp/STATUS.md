@@ -6,7 +6,7 @@
 |------|------|------|
 | Phase 1 調査 (survey.json) | 完了 | decision=wrap |
 | DESIGN.md | 完了 | docs/mcp/DESIGN.md |
-| MCP サーバ実装 (mcp_server.py) | 完了 | 14 tools, 3 resources |
+| MCP サーバ実装 (mcp_server.py) | 完了 | 15 tools, 3 resources |
 | e2e テスト | 完了 | 13 tests all pass |
 | volta.service.json | 完了 | namespace=session-replay, port=9241 |
 | deploy/run_mcp.sh | 完了 | |
@@ -17,11 +17,12 @@
 | issue-hub 協調 | 完了 | #295 #296 #297（返答待たず暫定仕様で進行） |
 | commit & push | 完了 | |
 | volta svc_add (dry-run) | 完了 | |
-| volta svc_add (confirm) | 完了 | |
-| gateway routes diff | 完了 | |
-| gateway routes apply | 完了 | |
-| https://hostname/healthz 200 | 完了 | |
-| catalog__backend_status ready | 完了 | |
+| volta svc_add (confirm) | 完了 | mcp 項追加（namespace=session-replay, port=9241） |
+| gateway routes diff | 完了 | 自分の1件のみ変更（backend URL + min_role） |
+| gateway routes apply | 完了 | job done, SIGHUP 済み |
+| https://hostname/healthz 200 | 完了 | http://192.168.1.50:9241/healthz 200 |
+| catalog__backend_status ready | 完了 | namespace=session-replay, status=ready, tools=15 |
+| catalog__audit_backend | 完了 | 8 ok / 0 ng / 3 skip / 1 unknown |
 
 ## namespace / port
 
@@ -45,7 +46,8 @@
 | search_cross_status | job 型 | |
 | search_cross_result | job 型 | |
 | stats_session | 同期 | 1セッション統計 |
-| stats_overview_start | job 型 | 全セッション統計 |
+| stats_overview_start | job 型 | |
+| stats_overview_status | job 型 | |
 | stats_overview_result | job 型 | |
 | diff_sessions | 同期 | 2セッション比較 |
 
