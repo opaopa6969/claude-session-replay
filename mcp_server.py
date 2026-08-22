@@ -573,6 +573,18 @@ def stats_overview_start(agents: list[str]) -> dict[str, Any]:
 
 
 @mcp.tool(
+    description="全セッション統計概要ジョブの状態を取得する（read）。",
+    annotations=ToolAnnotations(read_only_hint=True),
+)
+def stats_overview_status(job_id: str) -> dict[str, Any]:
+    with _job_lock:
+        job = _jobs.get(job_id)
+    if not job:
+        return {"error": "job not found", "job_id": job_id}
+    return {"job_id": job_id, "state": job["state"], "error": job.get("error")}
+
+
+@mcp.tool(
     description="全セッション統計概要ジョブの結果を取得する（read）。"
     "state=done で overview が返る。",
     annotations=ToolAnnotations(read_only_hint=True),
@@ -646,6 +658,10 @@ _SPEC_CAPABILITIES = [
      "summary": "全セッション統計概要ジョブを開始する（job 型）",
      "input": "agents[]", "output": "{job_id, state, hint}",
      "side_effect": "read", "long_running": True, "dry_run": False, "min_role": "MEMBER"},
+    {"kind": "tool", "name": "stats_overview_status",
+     "summary": "全セッション統計概要ジョブの状態を取得する",
+     "input": "job_id", "output": "{job_id, state, error?}",
+     "side_effect": "read", "long_running": False, "dry_run": False, "min_role": "MEMBER"},
     {"kind": "tool", "name": "stats_overview_result",
      "summary": "全セッション統計概要ジョブの結果を取得する",
      "input": "job_id", "output": "{job_id, state, overview}",
