@@ -22,6 +22,7 @@ AI コーディングエージェントのセッションログを **3段パイ�
 - [キーボードショートカット](#キーボードショートカット)
 - [動作環境](#動作環境)
 - [注意事項](#注意事項)
+- [MCP](#mcp)
 - [ドキュメント](#ドキュメント)
 
 ---
@@ -128,7 +129,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 # 追加インストール不要 — 標準ライブラリのみで動作
 ```
 
-> **Note**: `pyproject.toml` は存在しない。パッケージとして公開されておらず、venv + requirements なし の直接実行が前提。
+> **Note**: `pyproject.toml`（hatchling ビルド、`[project.scripts]`・`optional-dependencies` 定義）が存在する。基本 CLI は標準ライブラリのみで動くため追加インストールは不要だが、`pip install -e .`（オプション依存は `pip install -e ".[web]"` など）でパッケージとしてインストールすることもできる。PyPI へは未公開。
 
 ### Web UI + MP4 / GIF / PDF 対応
 
@@ -249,7 +250,7 @@ python3 web_ui.py
 
 | 機能 | 必須 |
 |-----|-----|
-| 基本 CLI | Python 3.6+、外部依存なし |
+| 基本 CLI | Python 3.9+、外部依存なし |
 | Web UI | `flask`, `playwright` |
 | MP4 出力 | `playwright`, `ffmpeg` |
 | GIF 出力 | `playwright`, `pillow`（または `ffmpeg`） |
@@ -259,8 +260,36 @@ python3 web_ui.py
 
 ## 注意事項
 
-- **`pyproject.toml` なし**: このプロジェクトは PyPI に公開されていない。venv を使った直接実行が前提。
+- **`pyproject.toml` あり**: hatchling ビルド・`[project.scripts]`・`optional-dependencies` を定義しており、`pip install -e .` でのインストールに対応する（PyPI へは未公開）。venv での直接実行も引き続き可能。
 - **`session-shipper.py` のリダクション**: `session-shipper.py` の個人情報リダクション機能（`redact_pii` フラグ）は現時点で十分にテストされていない。本番環境での使用前に動作確認を推奨する。
+
+---
+
+## MCP
+
+このリポジトリは [volta MCP ファサード](https://mcp.unlaxer.org) に `session-replay` namespace で参加している。
+
+- **MCP サーバ**: `mcp_server.py`（port 9241, Streamable HTTP `/mcp`）
+- **namespace**: `session-replay`
+- **tools**: `list_sessions`, `to_model`, `render`, `search_session`, `stats_session`, `diff_sessions`, `render_media_start/status/result`, `search_cross_start/status/result`, `stats_overview_start/result`（14 tools）
+- **resources**: `session-replay://spec`, `session-replay://guide`, `session-replay://schema`
+- **skills**: `ship-sessions`, `add-agent-adapter`
+- **設計**: [docs/mcp/DESIGN.md](docs/mcp/DESIGN.md)
+- **状態**: [docs/mcp/STATUS.md](docs/mcp/STATUS.md)
+
+### 起動
+
+```bash
+pip install mcp uvicorn
+PORT=9241 python3 mcp_server.py
+```
+
+### テスト
+
+```bash
+python3 mcp_server.py &
+MCP_TEST_PORT=9241 pytest tests/test_mcp_server.py
+```
 
 ---
 

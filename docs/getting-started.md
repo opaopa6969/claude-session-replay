@@ -23,10 +23,10 @@ This guide walks through installation and your first session replay for each sup
 
 ## Prerequisites
 
-- Python 3.6 or later
+- Python 3.9 or later
 - At least one supported AI coding agent installed and used at least once (to have log files)
 
-No package manager (`pyproject.toml` does not exist — this project is not published to PyPI).
+The project includes `pyproject.toml`; it is not published to PyPI, but can be installed locally with `pip install -e .`.
 
 ---
 

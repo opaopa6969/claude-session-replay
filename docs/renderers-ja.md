@@ -107,7 +107,7 @@ python3 log-model-renderer.py session.model.json -f html -t console   # ダー�
 インタラクティブ HTML プレイヤー。メッセージを 1 件ずつ再生。**Alibai Mode**（タイムスタンプ可視化）を含む。
 
 ```bash
-python3 log-model-renderer.py session.model.json -f player              # ダークテーマ（デフォルト）
+python3 log-model-renderer.py session.model.json -f player              # ライトテーマ（デフォルト）
 python3 log-model-renderer.py session.model.json -f player -t light     # ライトテーマ
 python3 log-model-renderer.py session.model.json -f player --range "1-50"
 ```
@@ -116,7 +116,7 @@ python3 log-model-renderer.py session.model.json -f player --range "1-50"
 
 | オプション | 値 | 説明 |
 |-----------|---|-----|
-| `-t` / `--theme` | `light`、`console`（デフォルト） | カラーテーマ |
+| `-t` / `--theme` | `light`（デフォルト）、`console` | カラーテーマ |
 | `--range` | 例: `1-50,53-` | メッセージ範囲フィルター |
 | `--ansi-mode` | `strip`（デフォルト）、`color` | ANSI エスケープ処理 |
 

@@ -249,7 +249,15 @@ def _stream_main(args):
 
 def _tui_main():
     """TUI mode (interactive)."""
-    from log_replay_tui import LogReplayApp
+    try:
+        from log_replay_tui import LogReplayApp
+    except ImportError as exc:
+        sys.stderr.write(
+            "TUI mode requires the optional `textual` package.\n"
+            "Install it with:  pip install textual\n"
+            f"(missing module: {exc.name})\n"
+        )
+        raise SystemExit(1)
     app = LogReplayApp()
     app.run()
 

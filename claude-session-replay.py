@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Claude Code JSONL session transcript to Markdown/HTML converter."""
+"""[DEPRECATED] Legacy single-file Claude Code session replay script.
+
+This script is retained for backward compatibility. New code should use the
+modular pipeline: log-replay.py -> *-log2model.py -> log-model-renderer.py.
+See README.md and docs/architecture.md for the current architecture.
+
+Original description: Claude Code JSONL session transcript to Markdown/HTML converter.
+"""
 
 import argparse
 import html

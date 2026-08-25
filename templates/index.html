@@ -721,6 +721,9 @@
         <!-- Controls -->
         <div class="controls">
             <button id="runBtn" style="background: #4a9eff; border-color: #4a9eff; font-weight: bold;" data-i18n="run">▶️ Run Conversion</button>
+            <button id="pdfBtn" style="background: #e05252; border-color: #e05252; font-weight: bold;" data-i18n="pdf_btn">📄 PDF出力</button>
+            <button id="jsonlZipBtn" style="background: #3fa66b; border-color: #3fa66b; font-weight: bold;" data-i18n="jsonl_zip_btn">🗜️ JSONL ZIP</button>
+            <button id="exportAllBtn" style="background: #b8860b; border-color: #b8860b; font-weight: bold;" data-i18n="export_all_btn">📦 全部出し ZIP</button>
             <button id="resetBtn" data-i18n="reset">🔄 Reset</button>
         </div>
 
@@ -1332,6 +1335,71 @@
             URL.revokeObjectURL(url);
         });
 
+        // エクスポート系ボタン共通処理（PDF / JSONL ZIP / 全部出しZIP）
+        async function exportDownload(endpoint, btn, fallbackName) {
+            if (!selectedSession) {
+                showMessage(MSG[LANG].select_session, 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            document.getElementById('outputPanel').style.display = 'block';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('outputButtons').style.display = 'none';
+
+            try {
+                const truncateValue = document.querySelector('input[name="truncateOption"]:checked').value;
+                const truncateLength = truncateValue === 'full' ? null : parseInt(truncateValue);
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent: selectedAgent,
+                        session_path: selectedSession.path,
+                        theme: selectedTheme,
+                        range: document.getElementById('rangeInput').value,
+                        alibai_time: document.getElementById('alibaiTimeInput').value,
+                        truncate_length: truncateLength
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    showMessage(`Error: ${err.error || response.statusText}`, 'error');
+                    return;
+                }
+
+                const blob = await response.blob();
+                const cd = response.headers.get('Content-Disposition') || '';
+                const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i);
+                const filename = m ? decodeURIComponent(m[1]) : fallbackName;
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                showMessage(MSG[LANG].export_complete, 'success');
+            } catch (err) {
+                showMessage(`Error: ${err}`, 'error');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('pdfBtn').addEventListener('click', function() {
+            exportDownload('/api/export-pdf', this, 'session.pdf');
+        });
+        document.getElementById('jsonlZipBtn').addEventListener('click', function() {
+            exportDownload('/api/export-jsonl-zip', this, 'session.jsonl.zip');
+        });
+        document.getElementById('exportAllBtn').addEventListener('click', function() {
+            exportDownload('/api/export-all-zip', this, 'session_all.zip');
+        });
+
         document.getElementById('resetBtn').addEventListener('click', () => {
             document.getElementById('rangeInput').value = '';
             document.getElementById('outputInput').value = '';
@@ -1525,6 +1593,9 @@
                 info: 'ℹ️ 情報',
                 info_placeholder: 'セッションを選択すると詳細が表示されます...',
                 run: '▶️ 変換実行',
+                pdf_btn: '📄 PDF出力',
+                jsonl_zip_btn: '🗜️ JSONL ZIP',
+                export_all_btn: '📦 全部出し ZIP',
                 reset: '🔄 リセット',
                 apply_to_output: '💾 出力に適用',
                 apply_to_session_log: '💾 セッションログに保存',
@@ -1566,6 +1637,9 @@
                 info: 'ℹ️ Info',
                 info_placeholder: 'Select a session to view details...',
                 run: '▶️ Run Conversion',
+                pdf_btn: '📄 Export PDF',
+                jsonl_zip_btn: '🗜️ JSONL ZIP',
+                export_all_btn: '📦 Export All ZIP',
                 reset: '🔄 Reset',
                 apply_to_output: '💾 Apply to Output',
                 apply_to_session_log: '💾 Apply to Session Log',
@@ -1591,6 +1665,7 @@
                 no_preview: 'プレビューがありません',
                 select_session: 'まずセッションを選択してください',
                 conversion_complete: '変換完了！',
+                export_complete: 'エクスポート完了！',
                 reset_complete: 'リセット'
             },
             en: {
@@ -1598,6 +1673,7 @@
                 no_preview: 'No preview available',
                 select_session: 'Please select a session first',
                 conversion_complete: 'Conversion complete!',
+                export_complete: 'Export complete!',
                 reset_complete: 'Reset'
             }
         };

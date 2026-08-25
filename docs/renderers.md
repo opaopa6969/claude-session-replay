@@ -107,7 +107,7 @@ python3 log-model-renderer.py session.model.json -f html -t console   # dark the
 Interactive HTML player. Replay messages one by one with full playback controls. Includes **Alibai Mode** for timestamp visualization.
 
 ```bash
-python3 log-model-renderer.py session.model.json -f player              # dark theme (default)
+python3 log-model-renderer.py session.model.json -f player              # light theme (default)
 python3 log-model-renderer.py session.model.json -f player -t light     # light theme
 python3 log-model-renderer.py session.model.json -f player --range "1-50"
 ```
@@ -116,7 +116,7 @@ python3 log-model-renderer.py session.model.json -f player --range "1-50"
 
 | Option | Values | Description |
 |--------|--------|-------------|
-| `-t` / `--theme` | `light`, `console` (default) | Color theme |
+| `-t` / `--theme` | `light` (default), `console` | Color theme |
 | `--range` | e.g. `1-50,53-` | Message range filter |
 | `--ansi-mode` | `strip` (default), `color` | ANSI escape handling |
 

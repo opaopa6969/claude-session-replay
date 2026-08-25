@@ -44,7 +44,7 @@ flowchart TB
 
 | Requirement | Notes |
 |-------------|-------|
-| Python 3.6+ | Standard library only for core features |
+| Python 3.9+ | Standard library only for core features |
 | `cryptography` (optional) | Only if `encryption_at_rest` is enabled |
 | Network access | To OpenSearch endpoint (HTTPS) |
 

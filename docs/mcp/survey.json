@@ -1,0 +1,212 @@
+{
+  "repo": "claude-session-replay",
+  "surveyed_at": "2026-08-21T23:24:00Z",
+  "kind": "cli",
+  "summary": "AI コーディングエージェント（Claude Code / Codex CLI / Gemini CLI / Aider / Cursor）のセッションログを共通モデルに正規化し、Markdown / HTML / Player / Terminal / MP4 / PDF / GIF に変換・再生するツールチェーン。3 段パイプライン（Capture → Normalize → Render）。Flask Web UI と TUI も持つ。",
+  "decision": "wrap",
+  "decision_reason": "既に volta カタログに登録済み（id=claude-session-replay, URL=https://replay-hvu.unlaxer.org, /healthz 200, docker/systemd で稼働中）。Flask Web UI が 18 の REST API エンドポイントを持ち、MCP 化はこれらの薄いラッパーで足りる。新規サーバ実装は不要で、既存の web_ui.py の横に /mcp エンドポイントを追加し、主要な操作（セッション一覧・変換・検索・統計・レンダリング）を MCP tool として公開すればよい。エージェントがセッションログを発見・変換・検索する能力は、volta 内の他サービス（index__agent_* のオーケストレーション、kamishibai の動画化）と組み合わせる価値がある。",
+  "existing": {
+    "http_api": true,
+    "cli": true,
+    "mcp": false,
+    "healthz": true,
+    "volta_manifest": false,
+    "hosted_url": "https://replay-hvu.unlaxer.org"
+  },
+  "proposed_namespace": "replay",
+  "capabilities": [
+    {
+      "verb": "セッション一覧を取得する",
+      "kind": "tool",
+      "name": "list_sessions",
+      "io": "agent (claude|codex|gemini|aider|cursor) → [{path, project, size, mtime, preview}]",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "web_ui.py:371 /api/sessions/<agent> → *_log2model.discover_sessions()"
+    },
+    {
+      "verb": "セッションを共通モデルに変換する",
+      "kind": "tool",
+      "name": "to_model",
+      "io": "agent + session_path → common model JSON {source, agent, messages[]}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "claude-log2model.py:build_model() 等（5 アダプター）"
+    },
+    {
+      "verb": "セッションをレンダリングする",
+      "kind": "tool",
+      "name": "render",
+      "io": "agent + session_path + format(md|html|player|terminal) + theme + range → HTML/MD 文字列 or ファイルパス",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "web_ui.py:828 /api/convert → log-model-renderer.py"
+    },
+    {
+      "verb": "セッションを MP4 に変換する",
+      "kind": "tool",
+      "name": "render_mp4",
+      "io": "agent + session_path + (width, height, fps, speed) → MP4 ファイルパス",
+      "side_effect": "read",
+      "long_running": true,
+      "maps_to": "log-replay-mp4.py (Playwright + FFmpeg, 30 秒超)"
+    },
+    {
+      "verb": "セッションを PDF に変換する",
+      "kind": "tool",
+      "name": "render_pdf",
+      "io": "agent + session_path → PDF ファイルパス",
+      "side_effect": "read",
+      "long_running": true,
+      "maps_to": "log-replay-pdf.py (Playwright, 30 秒超の可能性)"
+    },
+    {
+      "verb": "セッションを GIF に変換する",
+      "kind": "tool",
+      "name": "render_gif",
+      "io": "agent + session_path → GIF ファイルパス",
+      "side_effect": "read",
+      "long_running": true,
+      "maps_to": "log-replay-gif.py (Playwright + Pillow/FFmpeg, 30 秒超)"
+    },
+    {
+      "verb": "セッション内を検索する",
+      "kind": "tool",
+      "name": "search_session",
+      "io": "agent + session_path + query + {scope, case_sensitive, regex} → [{idx, role, field, excerpt}]",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "web_ui.py:1164 /api/search/within-session → search_utils.search_session_messages()"
+    },
+    {
+      "verb": "全セッションを横断検索する",
+      "kind": "tool",
+      "name": "search_cross",
+      "io": "[agent] + query + {scope, case_sensitive, regex, max_sessions} → [{agent, session, match_count, matches}] + stats",
+      "side_effect": "read",
+      "long_running": true,
+      "maps_to": "web_ui.py:1185 /api/search/cross-session → search_utils.search_across_sessions() (ProcessPoolExecutor 並列)"
+    },
+    {
+      "verb": "セッション統計を取得する",
+      "kind": "tool",
+      "name": "stats_session",
+      "io": "agent + session_path → {message_count, tool_usage, duration, ...}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "web_ui.py:1209 /api/stats/session → session-stats.compute_session_stats()"
+    },
+    {
+      "verb": "全セッションの統計概要を取得する",
+      "kind": "tool",
+      "name": "stats_overview",
+      "io": "[agent] → {per_agent, total, ...}",
+      "side_effect": "read",
+      "long_running": true,
+      "maps_to": "web_ui.py:1225 /api/stats/overview → session-stats.compute_overview_stats() (ThreadPoolExecutor 並列)"
+    },
+    {
+      "verb": "2 つのセッションを比較する",
+      "kind": "tool",
+      "name": "diff_sessions",
+      "io": "agent + session_a + session_b → {message_diff, tool_diff, ...}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "web_ui.py:1236 /api/diff → session-stats.compute_diff()"
+    },
+    {
+      "verb": "セッションをリアルタイム追従する",
+      "kind": "tool",
+      "name": "stream_session",
+      "io": "agent + session_path + poll_interval → SSE stream of messages",
+      "side_effect": "read",
+      "long_running": true,
+      "maps_to": "web_ui.py:1275 /api/stream/<agent> → log-replay-stream.py (ポーリング)"
+    },
+    {
+      "verb": "能力の仕様",
+      "kind": "resource",
+      "name": "spec",
+      "uri": "replay://spec"
+    },
+    {
+      "verb": "使い方",
+      "kind": "resource",
+      "name": "guide",
+      "uri": "replay://guide"
+    },
+    {
+      "verb": "共通モデルのスキーマ",
+      "kind": "resource",
+      "name": "common_model_schema",
+      "uri": "replay://schema"
+    },
+    {
+      "verb": "セッションログから個人情報をリダクションして出荷する手順",
+      "kind": "skill",
+      "name": "ship-sessions",
+      "locality": "repo"
+    },
+    {
+      "verb": "新しいエージェントアダプターを追加する手順",
+      "kind": "skill",
+      "name": "add-agent-adapter",
+      "locality": "repo"
+    }
+  ],
+  "composition_examples": [
+    "index__agent_list → replay__list_sessions(agent=claude) → replay__render(agent=claude, format=player) → kamishibai__render_start（セッション録画を紙芝居の素材にする）",
+    "replay__search_cross(query='refactor') → replay__stats_session で該当セッションの規模を把握 → replay__render(format=md) で共有用 Markdown を生成",
+    "replay__to_model → 共通モデル JSON を他サービス（例: 独自分析ツール）の入力にする"
+  ],
+  "dependencies": [
+    {
+      "repo": "agent-log-replayer",
+      "direction": "depends_on",
+      "capability": "ブラウザベースのリアルタイムリプレイ（xterm.js + WebSocket）。claude-session-replay の Web UI と機能が重複するが、agent-log-replayer は Node.js 製で WebSocket リアルタイム表示に特化",
+      "exists_now": true,
+      "note": "両者は独立。claude-session-replay は Python 製で変換パイプライン・検索・統計・多フォーマット出力が主。統合の可能性は Phase 2 で検討。"
+    },
+    {
+      "repo": "agent-log-broker",
+      "direction": "provides_to",
+      "capability": "セッションログの共通モデル JSON をブローカー経由で他コンシューマーに配信可能。session-shipper.py が OpenSearch/file エクスポートを持つが、agent-log-broker へのファンアウトも考えられる",
+      "exists_now": true,
+      "note": "session-shipper.py のトランスポート層が OpenSearch/File/DryRun のみ。agent-log-broker 連携は未実装。"
+    },
+    {
+      "repo": "volta-index",
+      "direction": "provides_to",
+      "capability": "index__agent_list / index__agent_status が稼働中エージェントのセッションを管理。replay__list_sessions と組み合わせて「どのエージェントが何をしたか」を再生できる",
+      "exists_now": true,
+      "note": "既に volta カタログに claude-session-replay として登録済み。MCP 項を追加すれば連携可能。"
+    },
+    {
+      "repo": "kamishibai",
+      "direction": "provides_to",
+      "capability": "セッション録画（player HTML / MP4 / GIF）を kamishibai の台本素材として活用可能",
+      "exists_now": true,
+      "note": "kamishibai は動画化ジョブを持つ。replay__render_mp4 の出力を入力にする絵が描ける。"
+    }
+  ],
+  "library_serve": {
+    "needed": false,
+    "new_work": [],
+    "runtime": "python",
+    "estimated_effort": "S"
+  },
+  "risks": [
+    "セッションログに個人情報・秘密情報（API キー、トークン、ファイル内容）が含まれる。MCP 経由で外部に公開する場合、redaction（session-shipper.py の機能）を必ず通す必要がある。現状 redact_pii フラグは十分テストされていない（README に警告あり）。",
+    "MP4 / GIF / PDF レンダリングは Playwright（ヘッドレスブラウザ）を要し、30 秒を超える可能性が高い。job 型（render_start → render_status → render_result）で実装する必要がある。",
+    "cross-session search / overview stats は全セッションをスキャンするため、セッション数が多いと長時間化する。max_sessions 制限とタイムアウトを設定する。",
+    "web_ui.py の Flask 開発サーバーは本番向きでない（SPEC.md も Gunicorn 推奨）。MCP エンドポイント追加時は同様の制約に注意。",
+    "agent-log-replayer と機能重複。どちらを主とするか整理が必要。"
+  ],
+  "open_questions": [
+    "agent-log-replayer（Node.js 製、WebSocket リアルタイム）と claude-session-replay（Python 製、変換パイプライン）は統合すべきか、役割分担するか？",
+    "MP4/GIF/PDF の長時間レンダリングを job 型にする場合、状態ファイル（job ID → 成果物）をどこに置くか（~/.claude-replay/ 配下か、一時ディレクトリか）？",
+    "MCP エンドポイントは既存の web_ui.py Flask アプリに /mcp を追加する形がよいか、独立した Python MCP サーバを立てる形がよいか？",
+    "volta.service.json をリポジトリ root に置くタイミング（Phase 2 で実装時）",
+    "セッションログのアクセス権限：MCP 経由でセッション内容を公開する場合、どの role まで許可するか"
+  ]
+}
