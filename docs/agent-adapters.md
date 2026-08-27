@@ -1,5 +1,3 @@
-[日本語版](ja/agent-adapters.md)
-
 # Agent Adapters
 
 This document specifies the input log format and adapter behavior for each supported agent.

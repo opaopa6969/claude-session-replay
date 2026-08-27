@@ -1,5 +1,3 @@
-[日本語版](ja/output-formats.md)
-
 # Output Formats
 
 This document specifies each output format produced by the renderer (`log-model-renderer.py`).

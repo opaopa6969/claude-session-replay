@@ -1,5 +1,3 @@
-[日本語版](ja/data-model.md)
-
 # Data Model — Common Log Model
 
 This document defines the common model JSON schema that serves as the contract between agent adapters and renderers.
