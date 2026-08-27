@@ -167,13 +167,13 @@ flowchart TB
 
 | カテゴリ | スクリプト | 依存 |
 |---|---|---|
-| コア (外部依存なし — Python 3.6+ 標準ライブラリのみ) | `claude-log2model.py`, `codex-log2model.py`, `gemini-log2model.py`, `aider-log2model.py`, `cursor-log2model.py`, `log-model-renderer.py`, `log-replay.py` | (none) |
+| コア (外部依存なし — Python 3.9+ 標準ライブラリのみ) | `claude-log2model.py`, `codex-log2model.py`, `gemini-log2model.py`, `aider-log2model.py`, `cursor-log2model.py`, `log-model-renderer.py`, `log-replay.py` | (none) |
 | オプション — Web UI | `web_ui.py` | flask |
 | オプション — ヘッドレス録画 (MP4) | `log-replay-mp4.py` | playwright、ffmpeg (システムバイナリ) |
 | オプション — ヘッドレス録画 (PDF) | `log-replay-pdf.py` | playwright |
 | オプション — ヘッドレス録画 (GIF) | `log-replay-gif.py` | playwright、pillow (または ffmpeg) |
 
-> **注意**: `pyproject.toml` は存在しない。オプション依存は venv 内に手動でインストールする必要がある。
+> **注意**: `pyproject.toml`（hatchling ビルド、`optional-dependencies` 定義）が存在する。オプション依存は `pip install -e ".[web]"` などの extras 経由、または venv 内に手動でインストールできる。
 
 遅延インポートにより、オプションパッケージが不足していてもスタートアップではなく機能境界でのみエラーが発生する。
 

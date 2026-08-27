@@ -215,12 +215,12 @@ These options apply across all formats:
 
 | Option | Flag | Values | Default | Description |
 |--------|------|--------|---------|-------------|
-| Format | `-f`, `--format` | md, html, player, terminal | md | Output format |
+| Format | `-f`, `--format` | md, html, player, terminal, pdf, gif | md | Output format (mp4 is via the separate `log-replay-mp4.py` script) |
 | Theme | `-t`, `--theme` | light, console | light | Color theme |
 | Output | `-o`, `--output` | file path | auto-generated | Output file path |
 | Range | `--range` | e.g., `1-50,53-` | all | Message range filter |
 | ANSI mode | `--ansi-mode` | strip, color | strip | ANSI escape handling |
-| Truncate | `--truncate-length` | integer | 0 (disabled) | Max content length per block |
+| Truncate | `--truncate` | integer | 500 (0 = disabled) | Max content length per block |
 
 ### Range specification syntax
 

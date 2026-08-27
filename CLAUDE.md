@@ -2,7 +2,7 @@
 
 ## Project overview
 
-claude-session-replay converts AI coding agent session logs (Claude Code, Codex CLI, Gemini CLI) into a common JSON model and renders them as Markdown, HTML, interactive player, or terminal-style player. Optionally exports to MP4 video.
+claude-session-replay converts AI coding agent session logs (Claude Code, Codex CLI, Gemini CLI, Aider, and Cursor) into a common JSON model and renders them as Markdown, HTML, interactive player, or terminal-style player. It can also export to MP4, PDF, or GIF.
 
 ## Architecture
 
@@ -53,7 +53,13 @@ source .venv/bin/activate
 
 ### Test
 
-No formal test suite. Verify manually:
+Pytest suite in `tests/` (`test_claude_adapter.py`, `test_renderer.py`, `test_search_utils.py`, plus `conftest.py` and `fixtures/`), configured via `[tool.pytest.ini_options]` in `pyproject.toml` and run in CI (`.github/workflows/ci.yml`, Python 3.9 / 3.11):
+
+```bash
+pip install pytest && pytest
+```
+
+Manual smoke test:
 
 ```bash
 # Smoke test: convert and render a Claude session
@@ -69,6 +75,8 @@ python3 log-replay.py --agent claude -f player -o /tmp/test.html
 | `claude-log2model.py` | Claude Code log → common model | ~332 |
 | `codex-log2model.py` | Codex CLI log → common model | ~397 |
 | `gemini-log2model.py` | Gemini CLI log → common model | ~223 |
+| `aider-log2model.py` | Aider chat history → common model | ~446 |
+| `cursor-log2model.py` | Cursor session data → common model | ~452 |
 | `log-model-renderer.py` | Common model → md/html/player/terminal | ~2580 |
 | `log-replay-mp4.py` | HTML → MP4 via Playwright + FFmpeg | ~160 |
 | `log-replay-pdf.py` | HTML → PDF via Playwright | ~130 |
@@ -79,9 +87,9 @@ python3 log-replay.py --agent claude -f player -o /tmp/test.html
 
 ## Key conventions
 
-- **Python 3.6+** — no type hints beyond what 3.6 supports
+- **Python 3.9+** — `requires-python = ">=3.9"` in `pyproject.toml`; CI tests on 3.9 / 3.11
 - **Standard library only** for core functionality — Flask/Playwright are optional
-- **No package manager** (no pyproject.toml, no requirements.txt) — deps are few and documented in README
+- **`pyproject.toml` present** (hatchling build, `[project.scripts]`, `optional-dependencies`) — core needs no extra deps; optional extras via `pip install -e ".[web]"` etc. Not published to PyPI.
 - **Self-contained HTML output** — all CSS/JS embedded, no external resources
 - **Filenames use hyphens** (`claude-log2model.py`), not underscores
 
@@ -90,7 +98,7 @@ python3 log-replay.py --agent claude -f player -o /tmp/test.html
 ```json
 {
   "source": "filename.jsonl",
-  "agent": "claude" | "codex" | "gemini",
+  "agent": "claude" | "codex" | "gemini" | "aider" | "cursor",
   "messages": [{
     "role": "user" | "assistant",
     "text": "",

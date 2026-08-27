@@ -1,0 +1,25 @@
+{
+  "id": "claude-session-replay",
+  "name": "Claude Session Replay",
+  "description": "AI coding agent session logs → common model → Markdown/HTML/Player/Terminal/MP4/PDF/GIF",
+  "type": "python",
+  "hostname": "replay-hvu.unlaxer.org",
+  "port": 5000,
+  "host": "192.168.1.50",
+  "runtime": "systemd",
+  "exec_start": "/home/opa/claude-session-replay/run.sh",
+  "user": "opa",
+  "auth": "minRole:MEMBER",
+  "health_check": "/healthz",
+  "tags": ["llm", "recording", "analysis", "mcp"],
+  "repo_url": "https://github.com/opaopa6969/claude-session-replay",
+  "mcp": {
+    "enabled": true,
+    "port": 9241,
+    "path": "/mcp",
+    "namespace": "session-replay",
+    "min_role": "MEMBER",
+    "timeoutMs": 110000,
+    "description": "AI エージェントセッションログの変換・検索・統計・レンダリング"
+  }
+}

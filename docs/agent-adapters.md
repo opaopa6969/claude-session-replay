@@ -193,7 +193,98 @@ Gemini uses a single JSON file per session:
 |--------|-------------|
 | `--project` | Filter by project name (substring match, case-insensitive) |
 
-## 5. Adding a new agent adapter
+## 5. Aider Adapter
+
+**Script**: `aider-log2model.py`
+
+### Input format
+
+- **Location**: `.aider.chat.history.md` in the current working directory, or under `~/.aider/` (history root)
+- **Format**: Markdown (single file per session)
+- **Encoding**: UTF-8
+
+Aider chat history uses markdown with role markers. Two formats are recognised:
+
+```markdown
+# aider chat started at <timestamp>
+
+#### /user <timestamp>
+<user message text>
+
+#### /assistant <timestamp>
+<assistant message text>
+```
+
+or the simpler form without explicit role markers:
+
+```markdown
+#### <user prompt>
+> <assistant response>
+```
+
+### Content mapping
+
+| Field | Mapping |
+|-------|---------|
+| `#### /user` / `#### <prompt>` | → `message.role = "user"` |
+| `#### /assistant` / `> <response>` | → `message.role = "assistant"` |
+| message body lines | → `message.text` (joined with newlines) |
+| header timestamp (when present) | → `message.timestamp` |
+
+`tool_uses`, `tool_results`, and `thinking` are always empty arrays — Aider's chat history format does not record tool invocations or reasoning blocks.
+
+### Session discovery
+
+- Scans the current directory and `~/.aider/` for `.aider.chat.history.md` files
+- Sorts by modification time (newest first)
+
+### Filter options
+
+| Option | Description |
+|--------|-------------|
+| `--project` | Filter by project name (substring match, case-insensitive) |
+
+## 6. Cursor Adapter
+
+**Script**: `cursor-log2model.py`
+
+### Input format
+
+- **Location**: Cursor data directories (`~/.cursor/`, `~/.config/Cursor/`, `~/Library/Application Support/Cursor/` on macOS, `%APPDATA%/Cursor/` on Windows)
+- **Format**: VSCode-style SQLite databases (`state.vscdb`) and JSON
+- **Encoding**: UTF-8
+
+Cursor stores conversation data in VSCode's state storage. The adapter reads `state.vscdb` SQLite databases (the `ItemTable` key-value store) and parses conversation-related keys (e.g. `chat`, `composer`, `conversation`, `aichat`) as JSON.
+
+### Role mapping
+
+| Cursor role | Common model role |
+|-------------|------------------|
+| `"user"` / `"human"` | `"user"` |
+| any other (`"assistant"`, `"gemini"`, ...) | `"assistant"` |
+
+### Content mapping
+
+| Field | Mapping |
+|-------|---------|
+| message `content` (string) | → `message.text` |
+| message `role` / `type` | → normalised `message.role` |
+
+`tool_uses`, `tool_results`, and `thinking` are always empty arrays — Cursor's stored conversation format does not expose tool invocations or reasoning blocks in the scraped state records.
+
+### Session discovery
+
+- Scans known Cursor data directories for `state.vscdb` files
+- Extracts conversations from chat-related ItemTable keys
+- Sorts by modification time (newest first)
+
+### Filter options
+
+| Option | Description |
+|--------|-------------|
+| `--project` | Filter by project name (substring match, case-insensitive) |
+
+## 7. Adding a new agent adapter
 
 To add support for a new agent:
 

@@ -947,7 +947,7 @@ session-shipper.py [--config PATH] <subcommand> [OPTIONS]
 
 ## 7. UI (Web UI and TUI)
 
-### 7.1 Web UI (web_ui.py — 1152 行)
+### 7.1 Web UI (web_ui.py — 1354 行)
 
 #### 7.1.1 構成
 
@@ -1203,7 +1203,6 @@ claude-session-replay = "log_replay:main"
 
 **最小要件: Python 3.9+**
 
-CLAUDE.md 記載の "Python 3.6+" は歴史的記述であり、
 `pyproject.toml` が `>=3.9` を要求するため 3.9 以上を要件とする。
 
 型ヒントは簡易なものに留め、3.9 互換の構文を使用する。
@@ -1619,7 +1618,7 @@ python3 session-shipper.py decrypt \
 | `log-replay-mp4.py` | MP4 エクスポート | ~160 |
 | `log-replay-pdf.py` | PDF エクスポート | ~142 |
 | `log-replay-gif.py` | GIF エクスポート | ~248 |
-| `web_ui.py` | Flask Web UI | ~1152 |
+| `web_ui.py` | Flask Web UI | ~1354 |
 | `log_replay_tui.py` | Textual TUI | ~727 |
 | `session-shipper.py` | Session Shipper | ~1596 |
 | `session-stats.py` | 統計・差分エンジン | ~668 |
