@@ -128,7 +128,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 # No additional packages needed — standard library only
 ```
 
-> **Note**: There is no `pyproject.toml`. This project is not published to PyPI. Run scripts directly inside a venv.
+> **Note**: `pyproject.toml` is present for editable installation and dependency extras, but the project is not published to PyPI. Install and run it inside a venv.
 
 ### Web UI + MP4 / GIF / PDF support
 

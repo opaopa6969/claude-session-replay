@@ -173,7 +173,7 @@ flowchart TB
 | Optional — Headless recording (PDF) | `log-replay-pdf.py` | playwright |
 | Optional — Headless recording (GIF) | `log-replay-gif.py` | playwright, pillow (or ffmpeg) |
 
-> **Note**: There is no `pyproject.toml`. Optional dependencies must be installed manually into a venv.
+> **Note**: `pyproject.toml` is present. Install optional dependencies with the `web`, `export`, or `all` extras in a venv (for example, `pip install -e ".[all]"`).
 
 Lazy imports ensure missing optional packages only cause errors at the feature boundary, not at startup.
 
@@ -241,4 +241,3 @@ claude-session-replay/
 ├── CLAUDE.md                  # AI development guide
 └── CHANGELOG.md
 ```
-
