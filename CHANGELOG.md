@@ -14,9 +14,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `log-replay-pdf.py` — PDF output via Playwright
 - Full documentation suite: architecture, getting-started, agents, renderers (en + ja)
 - `CHANGELOG.md`
+- `pyproject.toml` — package metadata, editable installation, and optional dependency groups
 
 ### Notes
-- `pyproject.toml` intentionally absent — project is not published to PyPI
 - `session-shipper.py` `redact_pii` flag is not yet thoroughly tested
 
 ---
