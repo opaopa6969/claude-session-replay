@@ -1,5 +1,3 @@
-[日本語版](ja/enterprise-deployment-guide.md)
-
 # Enterprise Deployment Guide
 
 This guide covers deploying session-shipper in an enterprise environment with OpenSearch, from initial setup to production operation.

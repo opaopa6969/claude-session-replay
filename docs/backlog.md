@@ -1,5 +1,3 @@
-[日本語版](ja/backlog.md)
-
 # Prioritized Backlog
 
 ## Phase 0 — Core pipeline ✓

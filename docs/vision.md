@@ -1,5 +1,3 @@
-[日本語版](ja/vision.md)
-
 # Vision
 
 ## Why this tool should exist

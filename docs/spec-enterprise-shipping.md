@@ -1,5 +1,3 @@
-[日本語版](ja/spec-enterprise-shipping.md)
-
 # Enterprise Session Shipping Specification
 
 ## 1. Purpose
