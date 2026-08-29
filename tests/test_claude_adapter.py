@@ -12,6 +12,7 @@ claude_adapter = load_module("claude_log2model", "claude-log2model.py")
 
 parse_messages = claude_adapter.parse_messages
 build_model = claude_adapter.build_model
+_extract_text_from_content = claude_adapter._extract_text_from_content
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 CLAUDE_FIXTURE = FIXTURES_DIR / "claude_session.jsonl"
@@ -182,3 +183,71 @@ class TestBuildModel:
         messages = parse_messages(str(tmp_file))
         model = build_model(messages, str(tmp_file))
         assert model["source"] == "mytest.jsonl"
+
+
+# ---------------------------------------------------------------------------
+# _extract_text_from_content
+# ---------------------------------------------------------------------------
+
+class TestExtractTextFromContent:
+    def test_string_content_returned_as_is(self):
+        assert _extract_text_from_content("hello") == "hello"
+
+    def test_empty_string_returned(self):
+        assert _extract_text_from_content("") == ""
+
+    def test_list_of_text_blocks_joined_with_newline(self):
+        content = [
+            {"type": "text", "text": "line1"},
+            {"type": "text", "text": "line2"},
+        ]
+        assert _extract_text_from_content(content) == "line1\nline2"
+
+    def test_list_non_text_blocks_ignored(self):
+        content = [
+            {"type": "tool_use", "text": "ignored"},
+            {"type": "text", "text": "kept"},
+        ]
+        assert _extract_text_from_content(content) == "kept"
+
+    def test_empty_list_returns_empty_string(self):
+        assert _extract_text_from_content([]) == ""
+
+    def test_text_block_missing_text_key_defaults_empty(self):
+        content = [{"type": "text"}]
+        assert _extract_text_from_content(content) == ""
+
+    def test_non_str_non_list_returns_empty(self):
+        assert _extract_text_from_content(42) == ""
+        assert _extract_text_from_content(None) == ""
+
+
+# ---------------------------------------------------------------------------
+# parse_messages — malformed input regression
+# ---------------------------------------------------------------------------
+
+class TestParseMessagesMalformed:
+    def test_malformed_line_raises_json_decode_error(self, tmp_path):
+        # The current implementation calls json.loads per line WITHOUT a
+        # try/except guard. A malformed line therefore propagates
+        # json.JSONDecodeError. This test pins that behavior so a silent
+        # change (e.g. swallowing errors) is detected.
+        bad_file = tmp_path / "bad.jsonl"
+        bad_file.write_text(
+            '{"type":"user","message":{"role":"user","content":"hi"},"timestamp":""}\n'
+            'not valid json\n',
+            encoding="utf-8",
+        )
+        with pytest.raises(json.JSONDecodeError):
+            parse_messages(str(bad_file))
+
+    def test_trailing_garbage_after_valid_lines_raises(self, tmp_path):
+        bad_file = tmp_path / "trailing.jsonl"
+        bad_file.write_text(
+            '{"type":"user","message":{"role":"user","content":"a"},"timestamp":""}\n'
+            '{"type":"assistant","message":{"role":"assistant","content":"b"},"timestamp":""}\n'
+            '}}garbage{{\n',
+            encoding="utf-8",
+        )
+        with pytest.raises(json.JSONDecodeError):
+            parse_messages(str(bad_file))
