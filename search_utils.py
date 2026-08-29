@@ -98,6 +98,8 @@ def _build_common_model(session_path, agent):
         with open(session_path, "r", encoding="utf-8") as f:
             session_data = json.load(f)
         return adapter.build_model(session_data, session_path)
+    elif agent in ("codex", "aider", "cursor"):
+        return adapter.build_model(session_path)
     else:
         messages = adapter.parse_messages(session_path)
         return adapter.build_model(messages, session_path)
