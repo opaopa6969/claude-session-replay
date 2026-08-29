@@ -949,13 +949,15 @@ def process_message(message, message_index, envelope, config, redactor, oidc_mgr
 def ship_batch_file(session_path, agent, config, transport, offset_tracker, redactor, oidc_mgr=None):
     adapter = _get_adapter(agent)
 
-    if agent == "gemini":
+    if agent == "claude":
+        messages = adapter.parse_messages(session_path)
+        model = adapter.build_model(messages, session_path)
+    elif agent == "gemini":
         with open(session_path, "r", encoding="utf-8") as f:
             session_data = json.load(f)
         model = adapter.build_model(session_data, session_path)
     else:
-        messages = adapter.parse_messages(session_path)
-        model = adapter.build_model(messages, session_path)
+        model = adapter.build_model(session_path)
 
     project = ""
     if hasattr(adapter, "_project_name_from_dir"):
