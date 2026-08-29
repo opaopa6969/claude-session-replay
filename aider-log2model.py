@@ -207,18 +207,18 @@ def _extract_preview(file_path):
     except (OSError, UnicodeDecodeError):
         pass
 
-    # If no first message found from #### markers, try to grab from parsed messages
-    if not first_message:
-        try:
-            msgs = _parse_chat_history(file_path)
+    # Recompute counts from parsed messages for accuracy (marker scan is rough)
+    try:
+        msgs = _parse_chat_history(file_path)
+        if not first_message:
             for m in msgs:
                 if m["role"] == "user":
                     first_message = m["text"].split("\n")[0]
                     break
-                user_count = sum(1 for m in msgs if m["role"] == "user")
-                assistant_count = sum(1 for m in msgs if m["role"] == "assistant")
-        except Exception:
-            pass
+        user_count = sum(1 for m in msgs if m["role"] == "user")
+        assistant_count = sum(1 for m in msgs if m["role"] == "assistant")
+    except Exception:
+        pass
 
     return {
         "timestamp": timestamp,
