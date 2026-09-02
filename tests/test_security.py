@@ -34,3 +34,21 @@ def test_web_ui_app_run_uses_debug_false():
     assert "debug=False" in src, (
         "web_ui.py app.run() should explicitly set debug=False"
     )
+
+
+def test_convert_does_not_write_request_selected_output_path():
+    """The web conversion endpoint must not expose server-side file writes."""
+    src = (ROOT / "web_ui.py").read_text(encoding="utf-8")
+    convert_src = src.split("@app.route('/api/convert'", 1)[1].split(
+        "LOG2MODEL_SCRIPTS", 1
+    )[0]
+    assert "write_text(output" not in convert_src
+    assert "output_file.parent.mkdir" not in convert_src
+    assert "The output parameter is not supported" in convert_src
+
+
+def test_web_ui_has_no_server_output_path_control():
+    """The UI must use its browser-side download controls."""
+    template = (ROOT / "templates/index.html").read_text(encoding="utf-8")
+    assert "id=\"outputInput\"" not in template
+    assert "id=\"browseBtn\"" not in template
