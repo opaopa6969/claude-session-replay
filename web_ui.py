@@ -835,12 +835,16 @@ def convert():
         format_type = data.get("format")
         theme = data.get("theme")
         range_filter = data.get("range")
-        output_path = data.get("output")
         alibai_time = data.get("alibai_time")
         truncate_length = data.get("truncate_length")
 
         if not all([agent, session_path, format_type]):
             return jsonify({"error": "Missing required parameters"}), 400
+
+        # Conversion results are returned to the browser, which owns the
+        # download.  Never allow a request to choose a server-side path.
+        if data.get("output"):
+            return jsonify({"error": "The output parameter is not supported; download the returned content"}), 400
 
         # Create temporary model file
         fd, model_path = tempfile.mkstemp(prefix="log-model-", suffix=".json")
@@ -919,31 +923,12 @@ def convert():
                 except:
                     pass
 
-            # If output file is requested, write it
-            if output_path:
-                output_file = Path(output_path)
-                output_file.parent.mkdir(parents=True, exist_ok=True)
-                output_file.write_text(output_content)
-                return jsonify({
-                    "success": True,
-                    "message": f"Output saved to {output_path}",
-                    "download_url": f"/api/download/{output_file.name}"
-                })
-
-            # Otherwise, return content based on format
-            if format_type in ["html", "player"]:
-                return jsonify({
-                    "success": True,
-                    "format": format_type,
-                    "content": output_content
-                })
-            else:
-                # For md and terminal, return as text
-                return jsonify({
-                    "success": True,
-                    "format": format_type,
-                    "content": output_content
-                })
+            # Return the content; the browser can display or download it.
+            return jsonify({
+                "success": True,
+                "format": format_type,
+                "content": output_content
+            })
 
         finally:
             # Cleanup temp model file

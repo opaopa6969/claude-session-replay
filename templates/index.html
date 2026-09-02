@@ -584,14 +584,6 @@
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="output_label">Output Path:</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="outputInput" placeholder="Leave empty for display only" data-i18n-ph="output_placeholder">
-                        <button type="button" id="browseBtn" style="width: auto; padding: 8px 12px;" data-i18n="browse">📁 Browse</button>
-                    </div>
-                </div>
-
-                <div class="form-group">
                     <label style="margin-bottom: 10px; display: block;">📋 Output Filters:</label>
                     <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
                         <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
@@ -778,21 +770,6 @@
                 this.classList.add('active');
                 selectedTheme = this.dataset.theme;
             });
-        });
-
-        // Browse output button
-        document.getElementById('browseBtn').addEventListener('click', async () => {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.setAttribute('nwsaveas', 'output.html');
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files && e.target.files[0]) {
-                    document.getElementById('outputInput').value = e.target.files[0].name;
-                }
-            });
-            // For web, we'll just set a default filename suggestion
-            const suggest = `output_${new Date().toISOString().slice(0,10)}.html`;
-            document.getElementById('outputInput').value = suggest;
         });
 
         // Load sessions on startup
@@ -1266,7 +1243,6 @@
                         format: selectedFormat,
                         theme: selectedTheme,
                         range: document.getElementById('rangeInput').value,
-                        output: document.getElementById('outputInput').value,
                         alibai_time: document.getElementById('alibaiTimeInput').value,
                         truncate_length: truncateLength
                     })
@@ -1402,7 +1378,6 @@
 
         document.getElementById('resetBtn').addEventListener('click', () => {
             document.getElementById('rangeInput').value = '';
-            document.getElementById('outputInput').value = '';
             document.getElementById('outputPanel').style.display = 'none';
             document.getElementById('outputButtons').style.display = 'none';
             document.getElementById('outputArea').innerHTML = '';
