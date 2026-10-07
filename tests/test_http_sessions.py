@@ -4,6 +4,12 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
+# CLI 単体のテスト環境（Python 3.9 を含む）は MCP を導入しない。
+# SDK を導入した環境では実 HTTP アプリの検証を必ず実行する。
+pytest.importorskip("mcp.server.mcpserver", reason="HTTP 回帰テストには MCP SDK 2.x が必要")
+
 import anyio
 import httpx2 as httpx
 
