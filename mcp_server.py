@@ -120,8 +120,9 @@ class IPAllowlistMiddleware(BaseHTTPMiddleware):
 
 
 def create_app():
+    # ジョブの進捗・結果は tool でポーリングし、MCP のサーバ発通知は使わない。
     app = mcp.streamable_http_app(
-        streamable_http_path=MCP_PATH, host=MCP_HOST, stateless_http=False
+        streamable_http_path=MCP_PATH, host=MCP_HOST, stateless_http=True
     )
     app.add_middleware(IPAllowlistMiddleware)
     return app
